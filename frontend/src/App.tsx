@@ -1,0 +1,203 @@
+import { useEffect, useState, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { ClipboardItem, FolderItem, Settings } from './types';
+import { Sidebar } from './components/Sidebar';
+import { ClipList } from './components/ClipList';
+import { SearchBar } from './components/SearchBar';
+import { SettingsPanel } from './components/SettingsPanel';
+import { useKeyboard } from './hooks/useKeyboard';
+
+function App() {
+  const [clips, setClips] = useState<ClipboardItem[]>([]);
+  const [folders, setFolders] = useState<FolderItem[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<Settings>({
+    max_items: 1000,
+    auto_delete_days: 30,
+    startup_with_windows: true,
+    show_in_taskbar: false,
+    hotkey: 'Ctrl+Alt+V',
+    theme: 'dark',
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const window = getCurrentWindow();
+
+  const loadClips = useCallback(async (folderId: string | null) => {
+    try {
+      setIsLoading(true);
+      const data = await invoke<ClipboardItem[]>('get_clips', {
+        folderId,
+        limit: 100,
+        offset: 0,
+      });
+      setClips(data);
+    } catch (error) {
+      console.error('Failed to load clips:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loadFolders = useCallback(async () => {
+    try {
+      const data = await invoke<FolderItem[]>('get_folders');
+      setFolders(data);
+    } catch (error) {
+      console.error('Failed to load folders:', error);
+    }
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const data = await invoke<Settings>('get_settings');
+      setSettings(data);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFolders();
+    loadClips(selectedFolder);
+    loadSettings();
+
+    const unlistenClipboard = listen('clipboard-change', () => {
+      loadClips(selectedFolder);
+    });
+
+    const unlistenHotkey = window.listen('tauri://focus', () => {
+      loadClips(selectedFolder);
+    });
+
+    return () => {
+      unlistenClipboard.then((fn: () => void) => fn());
+      unlistenHotkey.then((fn: () => void) => fn());
+    };
+  }, [selectedFolder, loadClips, loadFolders, loadSettings, window]);
+
+  useKeyboard({
+    onClose: () => window.hide(),
+    onSearch: () => document.getElementById('search-input')?.focus(),
+    onDelete: () => handleDelete(selectedClipId),
+    onPin: () => handlePin(selectedClipId),
+  });
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      try {
+        const data = await invoke<ClipboardItem[]>('search_clips', { query, limit: 100 });
+        setClips(data);
+      } catch (error) {
+        console.error('Failed to search clips:', error);
+      }
+    } else {
+      loadClips(selectedFolder);
+    }
+  };
+
+  const handleDelete = async (clipId: string | null) => {
+    if (!clipId) return;
+    try {
+      await invoke('delete_clip', { id: clipId, hardDelete: false });
+      setClips(clips.filter(c => c.id !== clipId));
+      setSelectedClipId(null);
+    } catch (error) {
+      console.error('Failed to delete clip:', error);
+    }
+  };
+
+  const handlePin = async (clipId: string | null) => {
+    if (!clipId) return;
+    const clip = clips.find(c => c.id === clipId);
+    if (!clip) return;
+
+    try {
+      if (clip.is_pinned) {
+        await invoke('unpin_clip', { id: clipId });
+      } else {
+        await invoke('pin_clip', { id: clipId });
+      }
+      setClips(clips.map(c =>
+        c.id === clipId ? { ...c, is_pinned: !c.is_pinned } : c
+      ));
+    } catch (error) {
+      console.error('Failed to pin/unpin clip:', error);
+    }
+  };
+
+  const handlePaste = async (clipId: string) => {
+    try {
+      await invoke('paste_clip', { id: clipId });
+      window.hide();
+    } catch (error) {
+      console.error('Failed to paste clip:', error);
+    }
+  };
+
+  const handleCreateFolder = async (name: string) => {
+    try {
+      await invoke('create_folder', { name, icon: null, color: null });
+      await loadFolders();
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      <Sidebar
+        folders={folders}
+        selectedFolder={selectedFolder}
+        onSelectFolder={setSelectedFolder}
+        onCreateFolder={handleCreateFolder}
+        onOpenSettings={() => setShowSettings(true)}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="flex-shrink-0 p-4 border-b border-border">
+          <SearchBar
+            query={searchQuery}
+            onQueryChange={handleSearch}
+            onClear={() => {
+              setSearchQuery('');
+              loadClips(selectedFolder);
+            }}
+          />
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-4">
+          <ClipList
+            clips={clips}
+            isLoading={isLoading}
+            selectedClipId={selectedClipId}
+            onSelectClip={setSelectedClipId}
+            onPaste={handlePaste}
+            onDelete={handleDelete}
+            onPin={handlePin}
+          />
+        </main>
+      </div>
+
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          onClose={() => setShowSettings(false)}
+          onSave={async (newSettings) => {
+            await invoke('save_settings', { settings: newSettings });
+            setSettings(newSettings);
+            setShowSettings(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export default App;
