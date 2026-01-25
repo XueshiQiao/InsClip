@@ -58,7 +58,14 @@ export function ClipList({
   }
 
   return (
-    <div className="flex flex-row overflow-x-auto gap-6 p-6 items-start h-full min-h-[300px] w-full snap-x no-scrollbar">
+    <div 
+      className="flex flex-row overflow-x-auto gap-6 p-6 items-start h-full min-h-[300px] w-full snap-x no-scrollbar"
+      onWheel={(e) => {
+        if (e.deltaY !== 0) {
+          e.currentTarget.scrollLeft += e.deltaY;
+        }
+      }}
+    >
       {clips.map((clip) => {
         const isSelected = selectedClipId === clip.id;
         // Determine title from app or type
@@ -70,7 +77,7 @@ export function ClipList({
             onClick={() => onSelectClip(clip.id)}
             onDoubleClick={() => onPaste(clip.id)}
             className={clsx(
-              'flex-shrink-0 w-[300px] h-[400px] flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all snap-center shadow-lg',
+              'flex-shrink-0 w-[210px] h-[280px] flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all snap-center shadow-lg',
               isSelected 
                 ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10' 
                 : 'hover:ring-2 hover:ring-purple-500/30 hover:-translate-y-1'
