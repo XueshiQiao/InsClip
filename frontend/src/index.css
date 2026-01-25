@@ -3,8 +3,78 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 262.1 83.3% 57.8%;
+    --primary-foreground: 210 20% 98%;
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 16% 93%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 16% 93%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 20% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262.1 83.3% 57.8%;
+    
+    --sidebar-background: 210 20% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+
+    /* Syntax Highlighting - Light (Modernized) */
+    --syntax-bg: 210 20% 98%;
+    --syntax-default: 222 47% 11%;
+    --syntax-keyword: 221.2 83.2% 53.3%;
+    --syntax-string: 142.1 76.2% 36.3%;
+    --syntax-number: 215.4 16.3% 46.9%;
+    --syntax-bracket: 221.2 83.2% 53.3%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%; /* #0a0a0b roughly, keeping close to #1E1E1E-ish feel or darker */
+    --background: 0 0% 12%; /* #1E1E1E */
+    --foreground: 0 0% 98%;
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 263.4 70% 50.4%; /* #6d28d9 */
+    --primary-foreground: 210 20% 98%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 85.7% 97.3%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 263.4 70% 50.4%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+
+    /* Syntax Highlighting - Dark */
+    --syntax-bg: 0 0% 12%; /* #1E1E1E */
+    --syntax-default: 0 0% 83%; /* #D4D4D4 */
+    --syntax-keyword: 207 61% 59%; /* #569CD6 */
+    --syntax-string: 95 38% 62%; /* #B5CEA8 - actually string was green #6A9955 which is 98 25 47 */
+    --syntax-string: 98 26% 47%;
+    --syntax-number: 95 38% 62%; /* #B5CEA8 */
+    --syntax-bracket: 48 96% 53%; /* #FFD700 */
+  }
+
   * {
-    @apply border-gray-700;
+    @apply border-border;
   }
 
   html, body, #root {
@@ -12,7 +82,7 @@
   }
 
   body {
-    @apply font-sans antialiased text-gray-100;
+    @apply font-sans antialiased text-foreground;
   }
 
   ::-webkit-scrollbar {
@@ -20,61 +90,61 @@
   }
 
   ::selection {
-    @apply bg-purple-500/30;
+    @apply bg-primary/30;
   }
 }
 
 @layer components {
   .clip-card {
-    @apply relative bg-gray-900 border border-gray-800 rounded-xl p-4 transition-all duration-200;
+    @apply relative bg-card border border-border rounded-xl p-4 transition-all duration-200;
   }
 
   .clip-card:hover {
-    @apply border-purple-500/50 bg-gray-800/80;
+    @apply border-primary/50 bg-accent/80;
   }
 
   .clip-card.selected {
-    @apply border-purple-500 bg-purple-500/5;
+    @apply border-primary bg-primary/5;
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 transition-all duration-200;
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground transition-all duration-200;
   }
 
   .sidebar-item:hover {
-    @apply bg-gray-800 text-gray-100;
+    @apply bg-accent text-accent-foreground;
   }
 
   .sidebar-item.active {
-    @apply bg-gray-800 text-gray-100;
+    @apply bg-accent text-accent-foreground;
   }
 
   .search-input {
-    @apply w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200;
+    @apply w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-950 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-primary {
-    @apply bg-purple-600 text-white hover:bg-purple-500;
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
   }
 
   .btn-secondary {
-    @apply bg-gray-800 text-gray-100 hover:bg-gray-700;
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
   }
 
   .btn-ghost {
-    @apply hover:bg-gray-800 hover:text-gray-100;
+    @apply hover:bg-accent hover:text-accent-foreground;
   }
 
   .btn-destructive {
-    @apply bg-red-600 text-white hover:bg-red-500;
+    @apply bg-destructive text-destructive-foreground hover:bg-destructive/90;
   }
 
   .icon-button {
-    @apply p-2 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-all duration-200;
+    @apply p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200;
   }
 
   .folder-badge {
@@ -82,34 +152,17 @@
   }
 
   .keyboard-shortcut {
-    @apply inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded bg-gray-800 text-xs text-gray-400 font-mono;
+    @apply inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded bg-muted text-xs text-muted-foreground font-mono;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply backdrop-blur-xl bg-gray-950/80;
+    @apply backdrop-blur-xl bg-background/80;
   }
 
   .glass-dark {
-    @apply backdrop-blur-xl bg-gray-950/90;
-  }
-
-  .gradient-border {
-    position: relative;
-  }
-
-  .gradient-border::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 1px;
-    border-radius: inherit;
-    background: linear-gradient(135deg, #8b5cf6, transparent 50%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
+    @apply backdrop-blur-xl bg-background/90;
   }
 
   .drag-area {
@@ -120,41 +173,6 @@
   .resize-handle {
     position: absolute;
     background: transparent;
-  }
-
-  .resize-handle-right {
-    right: 0;
-    top: 0;
-    width: 4px;
-    height: 100%;
-    cursor: e-resize;
-  }
-
-  .resize-handle-bottom {
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 4px;
-    cursor: s-resize;
-  }
-
-  .resize-handle-corner {
-    bottom: 0;
-    right: 0;
-    width: 12px;
-    height: 12px;
-    cursor: se-resize;
-  }
-
-  /* Hide scrollbar for Chrome, Safari and Opera */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Hide scrollbar for IE, Edge and Firefox */
-  .no-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
   }
 
   .mask-gradient-right {

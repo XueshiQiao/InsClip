@@ -145,28 +145,28 @@ function ClipCell({
             : 'hover:ring-2 hover:ring-purple-500/30 hover:-translate-y-1'
         )}
       >
-        <div className="bg-[#6D28D9] px-4 py-3 flex items-center justify-between flex-shrink-0">
-          <span className="font-bold text-white text-sm truncate w-full">
+        <div className="bg-primary px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <span className="font-bold text-primary-foreground text-sm truncate w-full">
             {title}
           </span>
         </div>
 
-        <div className="flex-1 bg-[#1E1E1E] p-4 overflow-hidden relative">
-          <pre className="font-mono text-xs leading-tight whitespace-pre-wrap break-all text-gray-300">
+        <div className="flex-1 bg-card p-4 overflow-hidden relative">
+          <pre className="font-mono text-xs leading-tight whitespace-pre-wrap break-all text-syntax-default">
             {clip.content.split(/(\s+)/).map((word, i) => {
-              let colorClass = "text-[#D4D4D4]";
-              if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-[#569CD6]";
-              else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-[#6A9955]";
-              else if (/^\d+$/.test(word)) colorClass = "text-[#B5CEA8]";
-              else if (/[{}()[\]]/.test(word)) colorClass = "text-[#FFD700]";
+              let colorClass = "text-syntax-default";
+              if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-syntax-keyword";
+              else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-syntax-string";
+              else if (/^\d+$/.test(word)) colorClass = "text-syntax-number";
+              else if (/[{}()[\]]/.test(word)) colorClass = "text-syntax-bracket";
               return <span key={i} className={colorClass}>{word}</span>
             })}
           </pre>
-          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#1E1E1E] to-transparent pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none" />
         </div>
 
-        <div className="bg-[#252526] px-4 py-2 border-t border-[#333] flex-shrink-0">
-          <span className="text-xs text-gray-500 font-medium">
+        <div className="bg-secondary px-4 py-2 border-t border-border flex-shrink-0">
+          <span className="text-xs text-muted-foreground font-medium">
             {clip.content.length} characters
           </span>
         </div>

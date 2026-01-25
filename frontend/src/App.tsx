@@ -3,11 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { ClipboardItem, FolderItem } from './types';
+import { ClipboardItem, FolderItem, Settings } from './types';
 import { ClipList } from './components/ClipList';
 import { SearchBar } from './components/SearchBar';
 import { ControlBar } from './components/ControlBar';
 import { useKeyboard } from './hooks/useKeyboard';
+import { useTheme } from './hooks/useTheme';
 
 function App() {
   const [clips, setClips] = useState<ClipboardItem[]>([]);
@@ -17,10 +18,25 @@ function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [theme, setTheme] = useState('dark');
+
+  useTheme(theme);
 
   const window = getCurrentWindow();
   const selectedFolderRef = useRef(selectedFolder);
   selectedFolderRef.current = selectedFolder;
+
+  useEffect(() => {
+    invoke<Settings>('get_settings').then(s => setTheme(s.theme)).catch(console.error);
+    
+    // Listen for setting changes from the settings window
+    const unlisten = listen<Settings>('settings-changed', (event) => {
+        setTheme(event.payload.theme);
+    });
+    return () => {
+        unlisten.then(f => f());
+    };
+  }, []);
 
   const openSettings = useCallback(async () => {
     // Check if settings window already exists
@@ -187,7 +203,7 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#1E1E1E] text-white overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
       <ControlBar
         folders={folders}
         selectedFolder={selectedFolder}

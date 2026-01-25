@@ -27,11 +27,11 @@ export function ControlBar({
   ];
 
   return (
-    <div className="flex items-center gap-4 p-4 border-b border-gray-800 bg-gray-950/90 drag-area">
+    <div className="flex items-center gap-4 p-4 border-b border-border bg-background/90 drag-area">
       {/* Search Icon */}
       <button
         onClick={onSearchClick}
-        className="text-gray-400 hover:text-white transition-colors"
+        className="text-muted-foreground hover:text-foreground transition-colors"
       >
         <Search size={20} />
       </button>
@@ -47,8 +47,8 @@ export function ControlBar({
               className={clsx(
                 "px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all",
                 isActive
-                  ? "bg-purple-600/20 text-purple-400 ring-1 ring-purple-500/50"
-                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-gray-300"
+                  ? "bg-primary/20 text-primary ring-1 ring-primary/50"
+                  : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
               )}
             >
               {cat.name}
@@ -65,13 +65,13 @@ export function ControlBar({
       <div className="flex items-center gap-2">
         <button
           onClick={onAddClick}
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
         >
           <Plus size={20} />
         </button>
         <button
           onClick={onMoreClick}
-          className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
         >
           <MoreHorizontal size={20} />
         </button>
