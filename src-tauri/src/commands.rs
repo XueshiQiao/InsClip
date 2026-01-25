@@ -76,7 +76,7 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
                 eprintln!("Querying for folder_id: {}", numeric_id);
                 sqlx::query_as(r#"
                     SELECT * FROM clips WHERE is_deleted = 0 AND folder_id = ?
-                    ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?
+                    ORDER BY created_at DESC LIMIT ? OFFSET ?
                 "#)
                 .bind(numeric_id)
                 .bind(limit)
@@ -91,13 +91,15 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
             eprintln!("Querying for all items");
             sqlx::query_as(r#"
                 SELECT * FROM clips WHERE is_deleted = 0
-                ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
             "#)
             .bind(limit)
             .bind(offset)
             .fetch_all(pool).await.map_err(|e| e.to_string())?
         }
     };
+
+    eprintln!("DB: Found {} clips", clips.len());
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
         let content_str = String::from_utf8_lossy(&clip.content).to_string();

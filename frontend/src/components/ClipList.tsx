@@ -1,6 +1,7 @@
 import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, CSSProperties } from 'react';
+import { Grid, type CellComponentProps } from 'react-window';
 
 interface ClipListProps {
   clips: ClipboardItem[];
@@ -20,19 +21,23 @@ export function ClipList({
   onSelectClip,
   onPaste,
 }: ClipListProps) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_, setMenuOpenId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<any>(null);
+  const [width, setWidth] = useState(0);
+  const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpenId(null);
+    if (!containerRef.current) return;
+    
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(entry.contentRect.width);
+        setHeight(entry.contentRect.height);
       }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    });
+    
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   if (isLoading) {
@@ -57,68 +62,115 @@ export function ClipList({
     );
   }
 
+  const ITEM_WIDTH = 210;
+  const GAP = 24;
+  const COLUMN_WIDTH = ITEM_WIDTH + GAP;
+
+  const listWidth = width > 0 ? width : window.innerWidth - 48;
+  const listHeight = height > 0 ? height : 280;
+
   return (
     <div 
-      className="flex flex-row overflow-x-auto gap-6 p-6 items-start h-full min-h-[300px] w-full snap-x no-scrollbar"
+      ref={containerRef} 
+      className="h-full w-full p-6 no-scrollbar overflow-hidden"
       onWheel={(e) => {
-        if (e.deltaY !== 0) {
-          e.currentTarget.scrollLeft += e.deltaY;
+        if (gridRef.current?.element && e.deltaY !== 0) {
+          gridRef.current.element.scrollLeft += e.deltaY;
         }
       }}
     >
-      {clips.map((clip) => {
-        const isSelected = selectedClipId === clip.id;
-        // Determine title from app or type
-        const title = clip.source_app || clip.clip_type.toUpperCase();
-        
-        return (
-          <div
-            key={clip.id}
-            onClick={() => onSelectClip(clip.id)}
-            onDoubleClick={() => onPaste(clip.id)}
-            className={clsx(
-              'flex-shrink-0 w-[210px] h-[280px] flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all snap-center shadow-lg',
-              isSelected 
-                ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10' 
-                : 'hover:ring-2 hover:ring-purple-500/30 hover:-translate-y-1'
-            )}
-          >
-            {/* Header: Solid Purple Block */}
-            <div className="bg-[#6D28D9] px-4 py-3 flex items-center justify-between">
-              <span className="font-bold text-white text-sm truncate w-full">
-                {title}
-              </span>
-            </div>
+      <Grid
+        gridRef={gridRef}
+        columnCount={clips.length}
+        columnWidth={COLUMN_WIDTH}
+        rowCount={1}
+        rowHeight={listHeight}
+        cellComponent={ClipCell}
+        cellProps={{
+          clips,
+          selectedClipId,
+          onSelectClip,
+          onPaste,
+        }}
+        style={{ 
+          width: listWidth,
+          height: listHeight,
+          overflow: 'hidden' 
+        }}
+        className="no-scrollbar"
+      />
+    </div>
+  );
+}
 
-            {/* Body: Code Snippet View */}
-            <div className="flex-1 bg-[#1E1E1E] p-4 overflow-hidden relative">
-              <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-all text-gray-300">
-                {/* Simulated syntax highlighting colors for demo purposes since we don't have a parser yet */}
-                {clip.content.split(/(\s+)/).map((word, i) => {
-                  // Simple heuristic for coloring to simulate syntax highlighting
-                  let colorClass = "text-[#D4D4D4]"; // Default
-                  if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-[#569CD6]"; // Blue keywords
-                  else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-[#6A9955]"; // Green Strings
-                  else if (/^\d+$/.test(word)) colorClass = "text-[#B5CEA8]"; // Light Green Numbers
-                  else if (/[{}()[\]]/.test(word)) colorClass = "text-[#FFD700]"; // Yellow Brackets
-                  
-                  return <span key={i} className={colorClass}>{word}</span>
-                })}
-              </pre>
-              
-              {/* Fade out at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#1E1E1E] to-transparent pointer-events-none" />
-            </div>
+function ClipCell({
+  columnIndex,
+  style,
+  clips,
+  selectedClipId,
+  onSelectClip,
+  onPaste,
+}: CellComponentProps<{
+  clips: ClipboardItem[];
+  selectedClipId: string | null;
+  onSelectClip: (id: string) => void;
+  onPaste: (id: string) => void;
+}>) {
+  const clip = clips[columnIndex];
+  if (!clip) return null;
 
-            {/* Footer: Size Indicator */}
-            <div className="bg-[#252526] px-4 py-2 border-t border-[#333]">
-              <span className="text-xs text-gray-500 font-medium">
-                {clip.content.length} characters
-              </span>
-            </div>
-          </div>
-        );
-      })}
+  const isSelected = selectedClipId === clip.id;
+  const title = clip.source_app || clip.clip_type.toUpperCase();
+
+  // Adjust style to account for gap
+  const cardStyle: CSSProperties = {
+    ...style,
+    width: Number(style.width) - 24, // Leave 24px gap
+    height: '100%',
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div
+        onClick={() => onSelectClip(clip.id)}
+        onDoubleClick={() => onPaste(clip.id)}
+        style={{
+          marginTop: 12,
+          height: 'calc(100% - 24px)'
+        }}
+        className={clsx(
+          'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg',
+          isSelected 
+            ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10' 
+            : 'hover:ring-2 hover:ring-purple-500/30 hover:-translate-y-1'
+        )}
+      >
+        <div className="bg-[#6D28D9] px-4 py-3 flex items-center justify-between flex-shrink-0">
+          <span className="font-bold text-white text-sm truncate w-full">
+            {title}
+          </span>
+        </div>
+
+        <div className="flex-1 bg-[#1E1E1E] p-4 overflow-hidden relative">
+          <pre className="font-mono text-xs leading-tight whitespace-pre-wrap break-all text-gray-300">
+            {clip.content.split(/(\s+)/).map((word, i) => {
+              let colorClass = "text-[#D4D4D4]";
+              if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-[#569CD6]";
+              else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-[#6A9955]";
+              else if (/^\d+$/.test(word)) colorClass = "text-[#B5CEA8]";
+              else if (/[{}()[\]]/.test(word)) colorClass = "text-[#FFD700]";
+              return <span key={i} className={colorClass}>{word}</span>
+            })}
+          </pre>
+          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#1E1E1E] to-transparent pointer-events-none" />
+        </div>
+
+        <div className="bg-[#252526] px-4 py-2 border-t border-[#333] flex-shrink-0">
+          <span className="text-xs text-gray-500 font-medium">
+            {clip.content.length} characters
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

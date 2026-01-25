@@ -55,7 +55,7 @@ function App() {
       setIsLoading(true);
       const data = await invoke<ClipboardItem[]>('get_clips', {
         filterId: folderId,
-        limit: 100,
+        limit: 10000,
         offset: 0,
       });
       console.log('Clips loaded:', data.length);
@@ -91,8 +91,8 @@ function App() {
 
   useEffect(() => {
     console.log('Setting up clipboard listener');
-    const unlistenClipboard = listen('clipboard-change', () => {
-      console.log('Clipboard changed event received');
+    const unlistenClipboard = listen('clipboard-change', (event) => {
+      console.log('Clipboard changed event received:', event);
       refreshCurrentFolder();
     });
 
@@ -215,7 +215,7 @@ function App() {
         </div>
       )}
 
-      <main className="flex-1 overflow-hidden relative no-scrollbar">
+      <main className="flex-1 relative no-scrollbar">
         <ClipList
           clips={clips}
           isLoading={isLoading}
