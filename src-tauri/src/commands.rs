@@ -249,19 +249,49 @@ pub async fn delete_folder(id: String, db: tauri::State<'_, Arc<Database>>) -> R
 }
 
 #[tauri::command]
-pub async fn search_clips(query: String, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
+pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
     
     let search_pattern = format!("%{}%", query);
     
-    let clips: Vec<Clip> = sqlx::query_as(r#"
-        SELECT * FROM clips WHERE is_deleted = 0 AND (text_preview LIKE ? OR content LIKE ?)
-        ORDER BY created_at DESC LIMIT ?
-    "#)
-    .bind(&search_pattern)
-    .bind(&search_pattern)
-    .bind(limit)
-    .fetch_all(pool).await.map_err(|e| e.to_string())?;
+    let clips: Vec<Clip> = match filter_id.as_deref() {
+        Some("pinned") => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0 AND is_pinned = 1 AND (text_preview LIKE ? OR content LIKE ?)
+                ORDER BY created_at DESC LIMIT ?
+            "#)
+            .bind(&search_pattern)
+            .bind(&search_pattern)
+            .bind(limit)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+        Some(id) => {
+            let folder_id_num = id.parse::<i64>().ok();
+            if let Some(numeric_id) = folder_id_num {
+                sqlx::query_as(r#"
+                    SELECT * FROM clips WHERE is_deleted = 0 AND folder_id = ? AND (text_preview LIKE ? OR content LIKE ?)
+                    ORDER BY created_at DESC LIMIT ?
+                "#)
+                .bind(numeric_id)
+                .bind(&search_pattern)
+                .bind(&search_pattern)
+                .bind(limit)
+                .fetch_all(pool).await.map_err(|e| e.to_string())?
+            } else {
+                Vec::new()
+            }
+        }
+        None => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0 AND (text_preview LIKE ? OR content LIKE ?)
+                ORDER BY created_at DESC LIMIT ?
+            "#)
+            .bind(&search_pattern)
+            .bind(&search_pattern)
+            .bind(limit)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+    };
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
         let content_str = String::from_utf8_lossy(&clip.content).to_string();

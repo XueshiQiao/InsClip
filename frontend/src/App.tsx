@@ -5,7 +5,6 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { ClipboardItem, FolderItem, Settings } from './types';
 import { ClipList } from './components/ClipList';
-import { SearchBar } from './components/SearchBar';
 import { ControlBar } from './components/ControlBar';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
@@ -102,7 +101,11 @@ function App() {
   useEffect(() => {
     console.log('Folder changed to:', selectedFolder);
     loadFolders();
-    loadClips(selectedFolder);
+    if (searchQuery.trim()) {
+        handleSearch(searchQuery);
+    } else {
+        loadClips(selectedFolder);
+    }
   }, [selectedFolder, loadFolders, loadClips]);
 
   useEffect(() => {
@@ -130,7 +133,11 @@ function App() {
     setSearchQuery(query);
     if (query.trim()) {
       try {
-        const data = await invoke<ClipboardItem[]>('search_clips', { query, limit: 100 });
+        const data = await invoke<ClipboardItem[]>('search_clips', { 
+            query, 
+            filterId: selectedFolder,
+            limit: 100 
+        });
         setClips(data);
       } catch (error) {
         console.error('Failed to search clips:', error);
@@ -208,7 +215,15 @@ function App() {
         folders={folders}
         selectedFolder={selectedFolder}
         onSelectFolder={setSelectedFolder}
-        onSearchClick={() => setShowSearch(!showSearch)}
+        showSearch={showSearch}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearch}
+        onSearchClick={() => {
+          if (showSearch) {
+            handleSearch(""); // Clear search when closing
+          }
+          setShowSearch(!showSearch);
+        }}
         onAddClick={() => {
            // For now, prompt for new folder creation as a placeholder for "Add"
            const name = prompt("Enter new folder name:");
@@ -216,20 +231,6 @@ function App() {
         }}
         onMoreClick={openSettings}
       />
-
-      {showSearch && (
-        <div className="p-4 border-b border-gray-800 bg-[#252526]">
-          <SearchBar
-            query={searchQuery}
-            onQueryChange={handleSearch}
-            onClear={() => {
-              setSearchQuery('');
-              loadClips(selectedFolder);
-              setShowSearch(false);
-            }}
-          />
-        </div>
-      )}
 
       <main className="flex-1 relative no-scrollbar">
         <ClipList
