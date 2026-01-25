@@ -27,12 +27,6 @@
         "label": "main"
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/tray.png",
-      "iconAsTemplate": true,
-      "tooltip": "WinPaste",
-      "menuOnLeftClick": false
-    },
     "security": {
       "csp": null
     },
