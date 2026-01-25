@@ -3,7 +3,7 @@ use crate::models::{Clip, Folder};
 
 #[derive(Clone)]
 pub struct Database {
-    pool: SqlitePool,
+    pub pool: SqlitePool,
 }
 
 impl Database {

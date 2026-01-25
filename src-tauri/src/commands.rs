@@ -1,25 +1,104 @@
 use tauri::Emitter;
 use crate::database::Database;
-use crate::models::{ClipboardItem, FolderItem, get_db_path};
+use std::sync::Arc;
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct Clip {
+    id: i64,
+    uuid: String,
+    clip_type: String,
+    content: Vec<u8>,
+    text_preview: String,
+    content_hash: String,
+    folder_id: Option<i64>,
+    is_pinned: bool,
+    is_deleted: bool,
+    source_app: Option<String>,
+    metadata: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    last_accessed: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct Folder {
+    id: i64,
+    name: String,
+    icon: Option<String>,
+    color: Option<String>,
+    is_system: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub(crate) struct ClipboardItem {
+    id: String,
+    clip_type: String,
+    content: String,
+    preview: String,
+    is_pinned: bool,
+    folder_id: Option<String>,
+    created_at: String,
+    source_app: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub(crate) struct FolderItem {
+    id: String,
+    name: String,
+    icon: Option<String>,
+    color: Option<String>,
+    is_system: bool,
+    item_count: i64,
+}
 
 #[tauri::command]
-pub fn get_clips(
-    folder_id: Option<String>,
-    limit: i64,
-    offset: i64,
-) -> Result<Vec<ClipboardItem>, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
+pub async fn get_clips(folder_id: Option<String>, limit: i64, offset: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let folder_id = match folder_id {
         Some(id) => Some(id.parse::<i64>().map_err(|_| "Invalid folder ID")?),
         None => None,
     };
 
-    let clips = rt.block_on(async {
-        db.get_clips(folder_id, limit, offset).await
-    }).map_err(|e| e.to_string())?;
+    let pool = &db.pool;
+
+    let clips: Vec<Clip> = match folder_id {
+        Some(2) => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0 AND is_pinned = 1
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            "#)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+        Some(3) => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
+            "#)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+        Some(id) => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0 AND folder_id = ?
+                ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?
+            "#)
+            .bind(id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+        None => {
+            sqlx::query_as(r#"
+                SELECT * FROM clips WHERE is_deleted = 0
+                ORDER BY is_pinned DESC, created_at DESC LIMIT ? OFFSET ?
+            "#)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool).await.map_err(|e| e.to_string())?
+        }
+    };
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
         let content_str = String::from_utf8_lossy(&clip.content).to_string();
@@ -40,16 +119,12 @@ pub fn get_clips(
 }
 
 #[tauri::command]
-pub fn get_clip(
-    id: String,
-) -> Result<ClipboardItem, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let clip = rt.block_on(async {
-        db.get_clip_by_uuid(&id).await
-    }).map_err(|e| e.to_string())?;
+pub async fn get_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<ClipboardItem, String> {
+    let pool = &db.pool;
+    
+    let clip: Option<Clip> = sqlx::query_as(r#"SELECT * FROM clips WHERE uuid = ?"#)
+        .bind(&id)
+        .fetch_optional(pool).await.map_err(|e| e.to_string())?;
 
     match clip {
         Some(clip) => {
@@ -71,17 +146,12 @@ pub fn get_clip(
 }
 
 #[tauri::command]
-pub fn paste_clip(
-    id: String,
-    window: tauri::Window,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let clip = rt.block_on(async {
-        db.get_clip_by_uuid(&id).await
-    }).map_err(|e| e.to_string())?;
+pub async fn paste_clip(id: String, window: tauri::Window, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    let clip: Option<Clip> = sqlx::query_as(r#"SELECT * FROM clips WHERE uuid = ?"#)
+        .bind(&id)
+        .fetch_optional(pool).await.map_err(|e| e.to_string())?;
 
     match clip {
         Some(clip) => {
@@ -94,124 +164,70 @@ pub fn paste_clip(
 }
 
 #[tauri::command]
-pub fn delete_clip(
-    id: String,
-    hard_delete: bool,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
+pub async fn delete_clip(id: String, hard_delete: bool, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
     if hard_delete {
-        let clip = rt.block_on(async {
-            db.get_clip_by_uuid(&id).await
-        }).map_err(|e| e.to_string())?;
-        if let Some(clip) = clip {
-            rt.block_on(async {
-                db.hard_delete_clip(clip.id).await
-            }).map_err(|e| e.to_string())?;
-        }
+        sqlx::query(r#"DELETE FROM clips WHERE uuid = ?"#)
+            .bind(&id)
+            .execute(pool).await.map_err(|e| e.to_string())?;
     } else {
-        let clip = rt.block_on(async {
-            db.get_clip_by_uuid(&id).await
-        }).map_err(|e| e.to_string())?;
-        if let Some(clip) = clip {
-            rt.block_on(async {
-                db.delete_clip(clip.id).await
-            }).map_err(|e| e.to_string())?;
-        }
+        sqlx::query(r#"UPDATE clips SET is_deleted = 1 WHERE uuid = ?"#)
+            .bind(&id)
+            .execute(pool).await.map_err(|e| e.to_string())?;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn pin_clip(
-    id: String,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let clip = rt.block_on(async {
-        db.get_clip_by_uuid(&id).await
-    }).map_err(|e| e.to_string())?;
-    match clip {
-        Some(clip) => {
-            rt.block_on(async {
-                db.pin_clip(clip.id).await
-            }).map_err(|e| e.to_string())?;
-            Ok(())
-        }
-        None => Err("Clip not found".to_string()),
-    }
+pub async fn pin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    sqlx::query(r#"UPDATE clips SET is_pinned = NOT is_pinned WHERE uuid = ?"#)
+        .bind(&id)
+        .execute(pool).await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn unpin_clip(
-    id: String,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let clip = rt.block_on(async {
-        db.get_clip_by_uuid(&id).await
-    }).map_err(|e| e.to_string())?;
-    match clip {
-        Some(clip) => {
-            rt.block_on(async {
-                db.unpin_clip(clip.id).await
-            }).map_err(|e| e.to_string())?;
-            Ok(())
-        }
-        None => Err("Clip not found".to_string()),
-    }
+pub async fn unpin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    sqlx::query(r#"UPDATE clips SET is_pinned = 0 WHERE uuid = ?"#)
+        .bind(&id)
+        .execute(pool).await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn move_to_folder(
-    clip_id: String,
-    folder_id: Option<String>,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
+pub async fn move_to_folder(clip_id: String, folder_id: Option<String>, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
     let folder_id = match folder_id {
         Some(id) => Some(id.parse::<i64>().map_err(|_| "Invalid folder ID")?),
         None => None,
     };
 
-    let clip = rt.block_on(async {
-        db.get_clip_by_uuid(&clip_id).await
-    }).map_err(|e| e.to_string())?;
-    match clip {
-        Some(clip) => {
-            rt.block_on(async {
-                db.update_clip_folder(clip.id, folder_id).await
-            }).map_err(|e| e.to_string())?;
-            Ok(())
-        }
-        None => Err("Clip not found".to_string()),
-    }
+    sqlx::query(r#"UPDATE clips SET folder_id = ? WHERE uuid = ?"#)
+        .bind(folder_id)
+        .bind(&clip_id)
+        .execute(pool).await.map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
-pub fn create_folder(
-    name: String,
-    icon: Option<String>,
-    color: Option<String>,
-) -> Result<FolderItem, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let folder_id = rt.block_on(async {
-        db.create_folder(&name, icon.as_deref(), color.as_deref()).await
-    }).map_err(|e| e.to_string())?;
+pub async fn create_folder(name: String, icon: Option<String>, color: Option<String>, db: tauri::State<'_, Arc<Database>>) -> Result<FolderItem, String> {
+    let pool = &db.pool;
+    
+    let id = sqlx::query(r#"INSERT INTO folders (name, icon, color) VALUES (?, ?, ?)"#)
+        .bind(&name)
+        .bind(icon.as_ref())
+        .bind(color.as_ref())
+        .execute(pool).await.map_err(|e| e.to_string())?
+        .last_insert_rowid();
 
     Ok(FolderItem {
-        id: folder_id.to_string(),
+        id: id.to_string(),
         name,
         icon,
         color,
@@ -221,33 +237,30 @@ pub fn create_folder(
 }
 
 #[tauri::command]
-pub fn delete_folder(
-    id: String,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
+pub async fn delete_folder(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
     let folder_id: i64 = id.parse().map_err(|_| "Invalid folder ID")?;
-    rt.block_on(async {
-        db.delete_folder(folder_id).await
-    }).map_err(|e| e.to_string())?;
-
+    sqlx::query(r#"DELETE FROM folders WHERE id = ?"#)
+        .bind(folder_id)
+        .execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn search_clips(
-    query: String,
-    limit: i64,
-) -> Result<Vec<ClipboardItem>, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let clips = rt.block_on(async {
-        db.search_clips(&query, limit).await
-    }).map_err(|e| e.to_string())?;
+pub async fn search_clips(query: String, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
+    let pool = &db.pool;
+    
+    let search_pattern = format!("%{}%", query);
+    
+    let clips: Vec<Clip> = sqlx::query_as(r#"
+        SELECT * FROM clips WHERE is_deleted = 0 AND (text_preview LIKE ? OR content LIKE ?)
+        ORDER BY created_at DESC LIMIT ?
+    "#)
+    .bind(&search_pattern)
+    .bind(&search_pattern)
+    .bind(limit)
+    .fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
         let content_str = String::from_utf8_lossy(&clip.content).to_string();
@@ -268,14 +281,11 @@ pub fn search_clips(
 }
 
 #[tauri::command]
-pub fn get_folders() -> Result<Vec<FolderItem>, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let folders = rt.block_on(async {
-        db.get_folders().await
-    }).map_err(|e| e.to_string())?;
+pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<FolderItem>, String> {
+    let pool = &db.pool;
+    
+    let folders: Vec<Folder> = sqlx::query_as(r#"SELECT * FROM folders ORDER BY name"#)
+        .fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     let items: Vec<FolderItem> = folders.iter().map(|folder| {
         FolderItem {
@@ -292,51 +302,64 @@ pub fn get_folders() -> Result<Vec<FolderItem>, String> {
 }
 
 #[tauri::command]
-pub fn get_settings() -> Result<super::models::Settings, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
+pub async fn get_settings(db: tauri::State<'_, Arc<Database>>) -> Result<serde_json::Value, String> {
+    let pool = &db.pool;
+    
+    let mut settings = serde_json::json!({
+        "max_items": 1000,
+        "auto_delete_days": 30,
+        "startup_with_windows": true,
+        "show_in_taskbar": false,
+        "hotkey": "Ctrl+Alt+V",
+        "theme": "dark",
+    });
 
-    let mut settings = super::models::Settings::default();
-
-    if let Ok(Some(value)) = rt.block_on(async {
-        db.get_setting("max_items").await
-    }) {
-        settings.max_items = value.parse().unwrap_or(1000);
+    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'max_items'"#)
+        .fetch_optional(pool).await.map_err(|e| e.to_string())
+    {
+        if let Ok(num) = value.parse::<i64>() {
+            settings["max_items"] = serde_json::json!(num);
+        }
     }
 
-    if let Ok(Some(value)) = rt.block_on(async {
-        db.get_setting("auto_delete_days").await
-    }) {
-        settings.auto_delete_days = value.parse().unwrap_or(30);
+    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'auto_delete_days'"#)
+        .fetch_optional(pool).await.map_err(|e| e.to_string())
+    {
+        if let Ok(num) = value.parse::<i64>() {
+            settings["auto_delete_days"] = serde_json::json!(num);
+        }
     }
 
-    if let Ok(Some(value)) = rt.block_on(async {
-        db.get_setting("theme").await
-    }) {
-        settings.theme = value;
+    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'theme'"#)
+        .fetch_optional(pool).await.map_err(|e| e.to_string())
+    {
+        settings["theme"] = serde_json::json!(value);
     }
 
     Ok(settings)
 }
 
 #[tauri::command]
-pub fn save_settings(
-    settings: super::models::Settings,
-) -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
+pub async fn save_settings(settings: serde_json::Value, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    if let Some(max_items) = settings.get("max_items").and_then(|v| v.as_i64()) {
+        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('max_items', ?)"#)
+            .bind(max_items.to_string())
+            .execute(pool).await.ok();
+    }
 
-    rt.block_on(async {
-        db.set_setting("max_items", &settings.max_items.to_string()).await
-    }).map_err(|e| e.to_string())?;
-    rt.block_on(async {
-        db.set_setting("auto_delete_days", &settings.auto_delete_days.to_string()).await
-    }).map_err(|e| e.to_string())?;
-    rt.block_on(async {
-        db.set_setting("theme", &settings.theme).await
-    }).map_err(|e| e.to_string())?;
+    if let Some(days) = settings.get("auto_delete_days").and_then(|v| v.as_i64()) {
+        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_delete_days', ?)"#)
+            .bind(days.to_string())
+            .execute(pool).await.ok();
+    }
+
+    if let Some(theme) = settings.get("theme").and_then(|v| v.as_str()) {
+        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('theme', ?)"#)
+            .bind(theme)
+            .execute(pool).await.ok();
+    }
 
     Ok(())
 }
@@ -347,25 +370,50 @@ pub fn hide_window(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_clipboard_history_size() -> Result<i64, String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
-
-    let size = rt.block_on(async {
-        db.get_clipboard_history_size().await
-    }).map_err(|e| e.to_string())?;
-    Ok(size)
+pub fn ping() -> Result<String, String> {
+    Ok("pong".to_string())
 }
 
 #[tauri::command]
-pub fn clear_clipboard_history() -> Result<(), String> {
-    let db_path = get_db_path();
-    let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let db = rt.block_on(async { Database::new(db_path).await });
+pub async fn get_clipboard_history_size(db: tauri::State<'_, Arc<Database>>) -> Result<i64, String> {
+    let pool = &db.pool;
+    
+    let count: i64 = sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM clips WHERE is_deleted = 0"#)
+        .fetch_one(pool).await.map_err(|e| e.to_string())?;
+    Ok(count)
+}
 
-    rt.block_on(async {
-        db.clear_history().await
-    }).map_err(|e| e.to_string())?;
+#[tauri::command]
+pub async fn clear_clipboard_history(db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    sqlx::query(r#"DELETE FROM clips WHERE is_deleted = 1"#)
+        .execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_all_clips(db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+    
+    sqlx::query(r#"DELETE FROM clips"#)
+        .execute(pool).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn remove_duplicate_clips(db: tauri::State<'_, Arc<Database>>) -> Result<i64, String> {
+    let pool = &db.pool;
+    
+    let result = sqlx::query(r#"
+        DELETE FROM clips 
+        WHERE id NOT IN (
+            SELECT MIN(id) 
+            FROM clips 
+            GROUP BY content_hash
+        )
+    "#)
+    .execute(pool).await.map_err(|e| e.to_string())?;
+
+    Ok(result.rows_affected() as i64)
 }

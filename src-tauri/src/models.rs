@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
 pub enum ClipType {
     Text,
@@ -61,14 +61,31 @@ impl Default for Settings {
     }
 }
 
-static DB_PATH: OnceLock<Arc<String>> = OnceLock::new();
+static DB_PATH: OnceLock<String> = OnceLock::new();
 
 pub fn set_db_path(path: String) {
-    DB_PATH.set(Arc::new(path)).ok();
+    DB_PATH.set(path).ok();
 }
 
 pub fn get_db_path() -> &'static str {
     DB_PATH.get().map(|s| s.as_str()).unwrap_or("")
+}
+
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+pub fn get_runtime() -> Result<&'static tokio::runtime::Runtime, String> {
+    if let Some(rt) = RUNTIME.get() {
+        return Ok(rt);
+    }
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    RUNTIME.set(rt).ok();
+    Ok(RUNTIME.get().unwrap())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

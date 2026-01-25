@@ -128,6 +128,43 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
             </button>
           </div>
 
+          <div className="pt-2 border-t border-border space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Debug Tools</p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (confirm('Delete ALL clips? This cannot be undone.')) {
+                    try {
+                      await invoke('clear_all_clips');
+                      setHistorySize(0);
+                      alert('All clips deleted');
+                    } catch (error) {
+                      console.error(error);
+                    }
+                  }
+                }}
+                className="btn btn-secondary text-xs flex-1"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const count = await invoke<number>('remove_duplicate_clips');
+                    alert(`Removed ${count} duplicate clips`);
+                    const newSize = await invoke<number>('get_clipboard_history_size');
+                    setHistorySize(newSize);
+                  } catch (error) {
+                    console.error(error);
+                  }
+                }}
+                className="btn btn-secondary text-xs flex-1"
+              >
+                Remove Duplicates
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-start gap-2 p-3 rounded-lg bg-accent/50">
             <Info size={16} className="text-muted-foreground mt-0.5 flex-shrink-0" />
             <p className="text-xs text-muted-foreground">

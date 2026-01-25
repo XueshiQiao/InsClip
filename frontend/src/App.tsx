@@ -30,23 +30,29 @@ function App() {
 
   const loadClips = useCallback(async (folderId: string | null) => {
     try {
+      console.log('Loading clips...', folderId);
       setIsLoading(true);
       const data = await invoke<ClipboardItem[]>('get_clips', {
-        folderId,
+        folder_id: folderId,
         limit: 100,
         offset: 0,
       });
+      console.log('Clips loaded:', data);
+      console.log('First clip preview:', data[0]?.preview);
+      console.log('All clip types:', data.map(c => c.clip_type));
       setClips(data);
     } catch (error) {
       console.error('Failed to load clips:', error);
     } finally {
-      setIsLoading(false);
+      setTimeout(() => setIsLoading(false), 100);
     }
   }, []);
 
   const loadFolders = useCallback(async () => {
     try {
+      console.log('Loading folders...');
       const data = await invoke<FolderItem[]>('get_folders');
+      console.log('Folders loaded:', data);
       setFolders(data);
     } catch (error) {
       console.error('Failed to load folders:', error);
@@ -55,7 +61,9 @@ function App() {
 
   const loadSettings = useCallback(async () => {
     try {
+      console.log('Loading settings...');
       const data = await invoke<Settings>('get_settings');
+      console.log('Settings loaded:', data);
       setSettings(data);
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -63,6 +71,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    console.log('Initial load effect running');
     loadFolders();
     loadClips(selectedFolder);
     loadSettings();
@@ -71,15 +80,12 @@ function App() {
       loadClips(selectedFolder);
     });
 
-    const unlistenHotkey = window.listen('tauri://focus', () => {
-      loadClips(selectedFolder);
-    });
-
     return () => {
-      unlistenClipboard.then((fn: () => void) => fn());
-      unlistenHotkey.then((fn: () => void) => fn());
+      unlistenClipboard.then((unlisten) => {
+        if (typeof unlisten === 'function') unlisten();
+      });
     };
-  }, [selectedFolder, loadClips, loadFolders, loadSettings, window]);
+  }, [selectedFolder, loadClips, loadFolders, loadSettings]);
 
   useKeyboard({
     onClose: () => window.hide(),
@@ -161,7 +167,7 @@ function App() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex-shrink-0 p-4 border-b border-border">
+        <header className="flex-shrink-0 p-4 border-b border-border drag-area">
           <SearchBar
             query={searchQuery}
             onQueryChange={handleSearch}
@@ -183,19 +189,23 @@ function App() {
             onPin={handlePin}
           />
         </main>
-      </div>
 
-      {showSettings && (
-        <SettingsPanel
-          settings={settings}
-          onClose={() => setShowSettings(false)}
-          onSave={async (newSettings) => {
-            await invoke('save_settings', { settings: newSettings });
-            setSettings(newSettings);
-            setShowSettings(false);
-          }}
-        />
-      )}
+        {showSettings && (
+          <SettingsPanel
+            settings={settings}
+            onClose={() => setShowSettings(false)}
+            onSave={async (newSettings) => {
+              await invoke('save_settings', { settings: newSettings });
+              setSettings(newSettings);
+              setShowSettings(false);
+            }}
+          />
+        )}
+
+        <div className="resize-handle resize-handle-right" />
+        <div className="resize-handle resize-handle-bottom" />
+        <div className="resize-handle resize-handle-corner" />
+      </div>
     </div>
   );
 }
