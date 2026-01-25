@@ -73,16 +73,15 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
   }, [recordingHotkey, handleKeyDown]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-      <div className="bg-popover border border-border rounded-2xl w-full max-w-md mx-4 shadow-2xl animate-scale-in">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-lg font-semibold">Settings</h2>
-          <button onClick={onClose} className="icon-button">
-            <X size={18} />
-          </button>
-        </div>
+    <div className="flex flex-col h-full bg-[#1E1E1E] text-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-800 drag-area">
+        <h2 className="text-lg font-semibold">Settings</h2>
+        <button onClick={onClose} className="icon-button">
+          <X size={18} />
+        </button>
+      </div>
 
-        <div className="p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
           <div className="space-y-3">
             <label className="block">
               <span className="text-sm font-medium">Storage Limit</span>
@@ -220,17 +219,16 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
               Items that are pinned will never be auto-deleted. Use the pin feature to keep important clips permanently.
             </p>
           </div>
-        </div>
+      </div>
 
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-          <button onClick={onClose} className="btn btn-secondary">
-            Cancel
-          </button>
-          <button onClick={handleSave} className="btn btn-primary">
-            <Save size={16} className="mr-2" />
-            Save
-          </button>
-        </div>
+      <div className="flex items-center justify-end gap-2 p-4 border-t border-gray-800 bg-[#1E1E1E]">
+        <button onClick={onClose} className="btn btn-secondary">
+          Cancel
+        </button>
+        <button onClick={handleSave} className="btn btn-primary">
+          <Save size={16} className="mr-2" />
+          Save
+        </button>
       </div>
     </div>
   );

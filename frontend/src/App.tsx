@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ClipboardItem, FolderItem, Settings } from './types';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { ClipboardItem, FolderItem } from './types';
 import { ClipList } from './components/ClipList';
 import { SearchBar } from './components/SearchBar';
-import { SettingsPanel } from './components/SettingsPanel';
 import { ControlBar } from './components/ControlBar';
 import { useKeyboard } from './hooks/useKeyboard';
 
@@ -16,20 +16,38 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState<Settings>({
-    max_items: 1000,
-    auto_delete_days: 30,
-    startup_with_windows: true,
-    show_in_taskbar: false,
-    hotkey: 'Ctrl+Alt+V',
-    theme: 'dark',
-  });
   const [isLoading, setIsLoading] = useState(true);
 
   const window = getCurrentWindow();
   const selectedFolderRef = useRef(selectedFolder);
   selectedFolderRef.current = selectedFolder;
+
+  const openSettings = useCallback(async () => {
+    // Check if settings window already exists
+    const existingWin = await WebviewWindow.getByLabel('settings');
+    if (existingWin) {
+      await existingWin.setFocus();
+      return;
+    }
+
+    const settingsWin = new WebviewWindow('settings', {
+      url: 'index.html?window=settings',
+      title: 'Settings',
+      width: 500,
+      height: 700,
+      resizable: false,
+      decorations: false, // We have our own title bar in SettingsPanel
+      center: true,
+    });
+
+    settingsWin.once('tauri://created', function () {
+      console.log('Settings window created');
+    });
+
+    settingsWin.once('tauri://error', function (e) {
+      console.error('Error creating settings window', e);
+    });
+  }, []);
 
   const loadClips = useCallback(async (folderId: string | null) => {
     try {
@@ -64,13 +82,6 @@ function App() {
     console.log('Refreshing folder:', selectedFolderRef.current);
     loadClips(selectedFolderRef.current);
   }, [loadClips]);
-
-  useEffect(() => {
-    console.log('Loading settings...');
-    invoke<Settings>('get_settings')
-      .then(setSettings)
-      .catch(console.error);
-  }, []);
 
   useEffect(() => {
     console.log('Folder changed to:', selectedFolder);
@@ -187,7 +198,7 @@ function App() {
            const name = prompt("Enter new folder name:");
            if (name) handleCreateFolder(name);
         }}
-        onMoreClick={() => setShowSettings(true)}
+        onMoreClick={openSettings}
       />
 
       {showSearch && (
@@ -216,18 +227,6 @@ function App() {
           onPin={handlePin}
         />
       </main>
-
-      {showSettings && (
-        <SettingsPanel
-          settings={settings}
-          onClose={() => setShowSettings(false)}
-          onSave={async (newSettings) => {
-            await invoke('save_settings', { settings: newSettings });
-            setSettings(newSettings);
-            setShowSettings(false);
-          }}
-        />
-      )}
     </div>
   );
 }

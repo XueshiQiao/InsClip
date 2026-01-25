@@ -1,13 +1,15 @@
 {
   "identifier": "default",
   "description": "Default capabilities for the main window",
-  "windows": ["main"],
+  "windows": ["*"],
   "permissions": [
     "core:default",
     "core:event:default",
     "core:window:default",
+    "core:window:allow-close",
     "core:app:default",
     "core:path:default",
+    "core:webview:allow-create-webview-window",
     "global-shortcut:default"
   ]
 }

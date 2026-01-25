@@ -42,16 +42,27 @@ pub fn run_app() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(db_arc.clone())
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Focused(focused) = event {
-                if !focused {
-                    let label = window.label();
-                    if let Some(win) = window.app_handle().get_webview_window(label) {
-                         let win_clone = win.clone();
-                         std::thread::spawn(move || {
-                             crate::animate_window_hide(&win_clone);
-                         });
+            match event {
+                tauri::WindowEvent::Focused(focused) => {
+                    if !focused {
+                        let label = window.label();
+                        // Only auto-hide the main window
+                        if label == "main" {
+                            if window.app_handle().get_webview_window("settings").is_some() {
+                                // Settings window is open, keep main window visible
+                                return;
+                            }
+                            
+                            if let Some(win) = window.app_handle().get_webview_window(label) {
+                                 let win_clone = win.clone();
+                                 std::thread::spawn(move || {
+                                     crate::animate_window_hide(&win_clone);
+                                 });
+                            }
+                        }
                     }
                 }
+                _ => {}
             }
         })
         .setup(move |app| {
