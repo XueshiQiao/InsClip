@@ -15,11 +15,14 @@ mod clipboard;
 mod database;
 mod models;
 mod commands;
+mod constants;
 
 use models::get_runtime;
 use database::Database;
 
 pub fn run_app() {
+// ... (rest of imports)
+
     let data_dir = get_data_dir();
     fs::create_dir_all(&data_dir).ok();
     let db_path = data_dir.join("winpaste.db");
@@ -145,7 +148,8 @@ pub fn run_app() {
             commands::clear_all_clips,
             commands::remove_duplicate_clips,
             commands::register_global_shortcut,
-            commands::show_window
+            commands::show_window,
+            commands::get_layout_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -168,7 +172,7 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
             let screen_size = monitor.size();
             let monitor_pos = monitor.position();
             let work_area = monitor.work_area();
-            let window_height_px = (340.0 * scale_factor) as u32;
+            let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
             
             let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
                 width: screen_size.width,
@@ -224,7 +228,7 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow) {
             let work_area = monitor.work_area();
             let monitor_pos = monitor.position();
             
-            let window_height_px = (340.0 * scale_factor) as u32;
+            let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
             
             let start_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32);
             let target_y = work_area.position.y + (work_area.size.height as i32); // Off screen

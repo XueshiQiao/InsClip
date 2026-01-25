@@ -2,6 +2,7 @@ import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
 import { useState, useRef, useEffect, CSSProperties } from 'react';
 import { Grid, type CellComponentProps } from 'react-window';
+import { LAYOUT, TOTAL_COLUMN_WIDTH } from '../constants';
 
 interface ClipListProps {
   clips: ClipboardItem[];
@@ -23,16 +24,16 @@ export function ClipList({
 }: ClipListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<any>(null);
-  const [width, setWidth] = useState(0);
-  const [height, setHeight] = useState(0);
+  const [width, setWidth] = useState(window.innerWidth);
+  const [height, setHeight] = useState(LAYOUT.WINDOW_HEIGHT - LAYOUT.CONTROL_BAR_HEIGHT);
 
   useEffect(() => {
     if (!containerRef.current) return;
     
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setWidth(entry.contentRect.width);
-        setHeight(entry.contentRect.height);
+        if (entry.contentRect.width > 0) setWidth(entry.contentRect.width);
+        if (entry.contentRect.height > 0) setHeight(entry.contentRect.height);
       }
     });
     
@@ -54,26 +55,18 @@ export function ClipList({
   if (clips.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full text-center p-8">
-        <h3 className="text-lg font-semibold mb-2 text-gray-400">No clips found</h3>
+        <h3 className="text-lg font-semibold mb-2 text-gray-400">No clips yet</h3>
         <p className="text-sm text-gray-500 max-w-xs">
-          Your clipboard history is empty for this category.
+          Copy something to your clipboard and it will appear here.
         </p>
       </div>
     );
   }
 
-  const ITEM_WIDTH = 210;
-  const GAP = 24;
-  const COLUMN_WIDTH = ITEM_WIDTH + GAP;
-
-  const listWidth = width > 0 ? width : window.innerWidth;
-  // Use a more realistic height if not yet measured
-  const listHeight = height > 0 ? height : 280;
-
   return (
     <div 
       ref={containerRef} 
-      className="h-full w-full no-scrollbar overflow-hidden"
+      className="flex-1 h-full w-full no-scrollbar overflow-hidden"
       onWheel={(e) => {
         if (gridRef.current?.element && e.deltaY !== 0) {
           gridRef.current.element.scrollLeft += e.deltaY;
@@ -82,14 +75,14 @@ export function ClipList({
     >
       <Grid
         gridRef={gridRef}
-        columnCount={clips.length + 1}
-        columnWidth={(index) => index === clips.length ? 48 : COLUMN_WIDTH}
+        columnCount={clips.length + 1} // +1 for trailing padding
+        columnWidth={(index) => index === clips.length ? LAYOUT.SIDE_PADDING : TOTAL_COLUMN_WIDTH}
         rowCount={1}
-        rowHeight={listHeight}
-        // @ts-ignore - types in v2.2.5 seem buggy but props are required for virtualization
-        width={listWidth}
+        rowHeight={height}
         // @ts-ignore
-        height={listHeight}
+        width={width}
+        // @ts-ignore
+        height={height}
         cellComponent={ClipCell}
         cellProps={{
           clips,
@@ -121,7 +114,6 @@ function ClipCell({
   onSelectClip: (id: string) => void;
   onPaste: (id: string) => void;
 }>) {
-  // Trailing padding cell
   if (columnIndex === clips.length) {
     return <div style={style} />;
   }
@@ -132,13 +124,12 @@ function ClipCell({
   const isSelected = selectedClipId === clip.id;
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
-  // Adjust style to account for gap and left padding
   const cardStyle: CSSProperties = {
     ...style,
-    left: Number(style.left) + 24, // 24px starting padding
-    width: Number(style.width) - 24, // Leave 24px gap between items
+    left: Number(style.left) + LAYOUT.SIDE_PADDING,
+    width: Number(style.width) - LAYOUT.CARD_GAP,
     height: '100%',
-    padding: '12px 0', // Vertical buffer for hover animation
+    padding: `${LAYOUT.CARD_VERTICAL_PADDING}px 0`, // Safe zones
   };
 
   return (
@@ -147,20 +138,20 @@ function ClipCell({
         onClick={() => onSelectClip(clip.id)}
         onDoubleClick={() => onPaste(clip.id)}
         className={clsx(
-          'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg',
+          'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg bg-card border border-border',
           isSelected 
             ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10' 
-            : 'hover:ring-2 hover:ring-purple-500/30 hover:-translate-y-1'
+            : 'hover:ring-2 hover:ring-primary/30 hover:-translate-y-1'
         )}
       >
-        <div className="bg-primary px-4 py-3 flex items-center justify-between flex-shrink-0">
-          <span className="font-bold text-primary-foreground text-sm truncate w-full">
+        <div className="bg-primary px-4 py-2 flex items-center justify-between flex-shrink-0">
+          <span className="font-bold text-primary-foreground text-[10px] uppercase tracking-wider truncate w-full">
             {title}
           </span>
         </div>
 
-        <div className="flex-1 bg-card p-4 overflow-hidden relative">
-          <pre className="font-mono text-xs leading-tight whitespace-pre-wrap break-all text-syntax-default">
+        <div className="flex-1 bg-card p-3 overflow-hidden relative">
+          <pre className="font-mono text-[11px] leading-tight whitespace-pre-wrap break-all text-syntax-default">
             {clip.content.split(/(\s+)/).map((word, i) => {
               let colorClass = "text-syntax-default";
               if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-syntax-keyword";
@@ -170,11 +161,11 @@ function ClipCell({
               return <span key={i} className={colorClass}>{word}</span>
             })}
           </pre>
-          <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
         </div>
 
-        <div className="bg-secondary px-4 py-2 border-t border-border flex-shrink-0">
-          <span className="text-xs text-muted-foreground font-medium">
+        <div className="bg-secondary px-3 py-1.5 border-t border-border flex-shrink-0">
+          <span className="text-[10px] text-muted-foreground font-medium">
             {clip.content.length} characters
           </span>
         </div>

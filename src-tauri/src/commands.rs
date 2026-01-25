@@ -443,3 +443,10 @@ pub fn show_window(window: tauri::WebviewWindow) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn get_layout_config() -> serde_json::Value {
+    serde_json::json!({
+        "window_height": crate::constants::WINDOW_HEIGHT,
+    })
+}

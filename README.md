@@ -86,6 +86,23 @@ Tauri v2 enforces a strict case mapping between JavaScript/TypeScript and Rust:
 
 Failure to follow this convention (e.g., passing `snake_case` from the frontend) will result in arguments being passed as `null` or `None` to the backend.
 
+### Adjusting the Layout
+
+The application uses a centralized layout system to ensure the native window and the virtualized list remain synchronized.
+
+-   **Backend Constants:** `src-tauri/src/constants.rs` (Controls the OS window size).
+*   **Frontend Constants:** `frontend/src/constants.ts` (Controls UI rendering and math).
+
+#### How to change Card Height
+The card height is dynamic and fills the available window space. To change it:
+1.  Update `WINDOW_HEIGHT` in **both** `constants.rs` and `constants.ts` to the same value.
+2.  Restart the application (required for Rust changes).
+
+#### How to change Vertical Spacing (Safe Zones)
+To add more or less space at the top/bottom of the cards (e.g., to prevent clipping during hover):
+1.  Modify `CARD_VERTICAL_PADDING` in `frontend/src/constants.ts`.
+2.  Increasing this value makes cards **shorter**; decreasing it makes them **taller**.
+
 ## Keyboard Shortcuts
 
 - `Ctrl + F` - Focus search
