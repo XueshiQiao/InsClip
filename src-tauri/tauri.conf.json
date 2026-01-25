@@ -21,6 +21,7 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
+        "shadow": false,
         "visible": false,
         "center": false,
         "label": "main"
