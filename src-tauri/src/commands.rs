@@ -1,4 +1,6 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+use std::str::FromStr;
 use crate::database::Database;
 use std::sync::Arc;
 
@@ -416,4 +418,28 @@ pub async fn remove_duplicate_clips(db: tauri::State<'_, Arc<Database>>) -> Resu
     .execute(pool).await.map_err(|e| e.to_string())?;
 
     Ok(result.rows_affected() as i64)
+}
+
+#[tauri::command]
+pub async fn register_global_shortcut(hotkey: String, window: tauri::Window) -> Result<(), String> {
+    let app = window.app_handle();
+    
+    let shortcut = Shortcut::from_str(&hotkey).map_err(|e| format!("Invalid hotkey: {:?}", e))?;
+    
+    if let Err(e) = app.global_shortcut().register(shortcut) {
+        return Err(format!("Failed to register hotkey: {:?}", e));
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub fn show_window(window: tauri::Window) -> Result<(), String> {
+    if let Err(e) = window.show() {
+        return Err(format!("Failed to show window: {:?}", e));
+    }
+    if let Err(e) = window.set_focus() {
+        return Err(format!("Failed to focus window: {:?}", e));
+    }
+    Ok(())
 }

@@ -77,11 +77,17 @@ pub fn run_app() {
                 .build(app)?;
 
             let app_handle = handle.clone();
+            let win = app_handle.get_webview_window("main").unwrap();
             let _ = app_handle.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
             
             if let Err(e) = app_handle.global_shortcut().register("Ctrl+Alt+V") {
                 eprintln!("Failed to register global shortcut: {:?}", e);
             }
+
+            app_handle.global_shortcut().on_shortcut("Ctrl+Alt+V", move |_, _, _| {
+                let _ = win.show();
+                let _ = win.set_focus();
+            });
 
             std::thread::spawn(move || {
                 clipboard::start_clipboard_monitor(handle, db_for_clipboard);
@@ -108,7 +114,9 @@ pub fn run_app() {
             commands::get_clipboard_history_size,
             commands::clear_clipboard_history,
             commands::clear_all_clips,
-            commands::remove_duplicate_clips
+            commands::remove_duplicate_clips,
+            commands::register_global_shortcut,
+            commands::show_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

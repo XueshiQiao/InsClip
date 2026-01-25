@@ -1,13 +1,7 @@
-import { useState } from 'react';
-import { FolderItem } from '../types';
-import {
-  Folder,
-  Pin,
-  Clock,
-  Settings,
-  Plus,
-} from 'lucide-react';
-import { clsx } from 'clsx';
+import { useState } from "react";
+import { FolderItem } from "../types";
+import { Folder, Pin, Clock, Settings, Plus } from "lucide-react";
+import { clsx } from "clsx";
 
 interface SidebarProps {
   folders: FolderItem[];
@@ -18,9 +12,9 @@ interface SidebarProps {
 }
 
 const SYSTEM_FOLDERS = [
-  { id: null, name: 'All', icon: Folder, is_system: true },
-  { id: '2', name: 'Pinned', icon: Pin, is_system: true },
-  { id: '3', name: 'Recent', icon: Clock, is_system: true },
+  { id: null, name: "All", icon: Folder, is_system: true },
+  { id: "2", name: "Pinned", icon: Pin, is_system: true },
+  { id: "3", name: "Recent", icon: Clock, is_system: true },
 ];
 
 export function Sidebar({
@@ -31,34 +25,35 @@ export function Sidebar({
   onOpenSettings,
 }: SidebarProps) {
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+  const [newFolderName, setNewFolderName] = useState("");
 
   const handleCreateFolder = () => {
     if (newFolderName.trim()) {
       onCreateFolder(newFolderName.trim());
-      setNewFolderName('');
+      setNewFolderName("");
       setShowNewFolderInput(false);
     }
   };
 
-  const customFolders = folders.filter(f => !f.is_system);
+  const customFolders = folders.filter((f) => !f.is_system);
 
   return (
     <aside className="w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col">
-      <div className="p-4">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+      <div className="p-4 pb-6 drag-area cursor-move border-b border-sidebar-border/50">
+        <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent select-none">
           WinPaste
         </h1>
+        <p className="text-xs text-muted-foreground mt-1 select-none">Clipboard History Manager</p>
       </div>
 
       <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {SYSTEM_FOLDERS.map((folder) => (
           <button
-            key={folder.id ?? 'all'}
+            key={folder.id ?? "all"}
             onClick={() => onSelectFolder(folder.id)}
             className={clsx(
-              'sidebar-item w-full',
-              selectedFolder === folder.id && 'active'
+              "sidebar-item w-full",
+              selectedFolder === folder.id && "active",
             )}
           >
             <folder.icon size={18} />
@@ -86,10 +81,10 @@ export function Sidebar({
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateFolder();
-                  if (e.key === 'Escape') {
+                  if (e.key === "Enter") handleCreateFolder();
+                  if (e.key === "Escape") {
                     setShowNewFolderInput(false);
-                    setNewFolderName('');
+                    setNewFolderName("");
                   }
                 }}
                 onBlur={() => {
@@ -109,8 +104,8 @@ export function Sidebar({
               key={folder.id}
               onClick={() => onSelectFolder(folder.id)}
               className={clsx(
-                'sidebar-item w-full',
-                selectedFolder === folder.id && 'active'
+                "sidebar-item w-full",
+                selectedFolder === folder.id && "active",
               )}
             >
               <Folder size={18} />
@@ -124,10 +119,7 @@ export function Sidebar({
       </nav>
 
       <div className="p-3 border-t border-sidebar-border space-y-1">
-        <button
-          onClick={onOpenSettings}
-          className="sidebar-item w-full"
-        >
+        <button onClick={onOpenSettings} className="sidebar-item w-full">
           <Settings size={18} />
           <span className="font-medium">Settings</span>
         </button>

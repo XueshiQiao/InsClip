@@ -1,6 +1,6 @@
 import { Settings } from '../types';
 import { X, Save, Trash2, Info } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 interface SettingsPanelProps {
@@ -12,6 +12,7 @@ interface SettingsPanelProps {
 export function SettingsPanel({ settings: initialSettings, onClose, onSave }: SettingsPanelProps) {
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [historySize, setHistorySize] = useState<number>(0);
+  const [recordingHotkey, setRecordingHotkey] = useState(false);
 
   useEffect(() => {
     invoke<number>('get_clipboard_history_size')
@@ -19,7 +20,12 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
       .catch(console.error);
   }, []);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    try {
+      await invoke('register_global_shortcut', { hotkey: settings.hotkey });
+    } catch (error) {
+      console.error('Failed to register hotkey:', error);
+    }
     onSave(settings);
   };
 
@@ -31,6 +37,40 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
       console.error('Failed to clear history:', error);
     }
   };
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!recordingHotkey) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const modifiers: string[] = [];
+    if (e.ctrlKey) modifiers.push('Ctrl');
+    if (e.altKey) modifiers.push('Alt');
+    if (e.shiftKey) modifiers.push('Shift');
+    if (e.metaKey) modifiers.push('Cmd');
+
+    const key = e.key.toUpperCase();
+    if (key.length === 1 && /[A-Z0-9]/.test(key)) {
+      modifiers.push(key);
+    } else if (key === ' ') {
+      modifiers.push('Space');
+    } else if (key === 'ESCAPE') {
+      setRecordingHotkey(false);
+      return;
+    }
+
+    const newHotkey = modifiers.join('+');
+    setSettings(prev => ({ ...prev, hotkey: newHotkey }));
+    setRecordingHotkey(false);
+  }, [recordingHotkey]);
+
+  useEffect(() => {
+    if (recordingHotkey) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [recordingHotkey, handleKeyDown]);
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
@@ -87,14 +127,23 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
             <label className="block">
               <span className="text-sm font-medium">Hotkey</span>
             </label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-sm">
-                {settings.hotkey}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                Press to change
-              </span>
-            </div>
+          <button
+            onClick={() => {
+              setRecordingHotkey(true);
+            }}
+              className={`w-full flex items-center gap-2 bg-input border border-border rounded-lg px-3 py-2 text-sm transition-colors ${
+                recordingHotkey ? 'border-primary ring-2 ring-primary' : ''
+              }`}
+            >
+              {recordingHotkey ? (
+                <span className="text-primary animate-pulse">Press any key...</span>
+              ) : (
+                <span>{settings.hotkey}</span>
+              )}
+            </button>
+            <p className="text-xs text-muted-foreground">
+              {recordingHotkey ? 'Press ESC to cancel' : 'Click to change, then press your new hotkey'}
+            </p>
           </div>
 
           <div className="flex items-center justify-between">
