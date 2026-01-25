@@ -38,6 +38,13 @@ pub fn run_app() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(db_arc.clone())
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(focused) = event {
+                if !focused {
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             let db_for_clipboard = db_arc.clone();
