@@ -29,14 +29,14 @@ export function ClipList({
 
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 0) setWidth(entry.contentRect.width);
         if (entry.contentRect.height > 0) setHeight(entry.contentRect.height);
       }
     });
-    
+
     observer.observe(containerRef.current);
     return () => observer.disconnect();
   }, []);
@@ -64,8 +64,8 @@ export function ClipList({
   }
 
   return (
-    <div 
-      ref={containerRef} 
+    <div
+      ref={containerRef}
       className="flex-1 h-full w-full no-scrollbar overflow-hidden"
       onWheel={(e) => {
         if (gridRef.current?.element && e.deltaY !== 0) {
@@ -90,10 +90,10 @@ export function ClipList({
           onSelectClip,
           onPaste,
         }}
-        style={{ 
+        style={{
           width: '100%',
           height: '100%',
-          overflow: 'hidden' 
+          overflow: 'hidden'
         }}
         className="no-scrollbar"
       />
@@ -139,8 +139,8 @@ function ClipCell({
         onDoubleClick={() => onPaste(clip.id)}
         className={clsx(
           'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg bg-card border border-border',
-          isSelected 
-            ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10' 
+          isSelected
+            ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10'
             : 'hover:ring-2 hover:ring-primary/30 hover:-translate-y-1'
         )}
       >
@@ -151,16 +151,24 @@ function ClipCell({
         </div>
 
         <div className="flex-1 bg-card p-3 overflow-hidden relative">
-          <pre className="font-mono text-[11px] leading-tight whitespace-pre-wrap break-all text-syntax-default">
-            {clip.content.split(/(\s+)/).map((word, i) => {
-              let colorClass = "text-syntax-default";
-              if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-syntax-keyword";
-              else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-syntax-string";
-              else if (/^\d+$/.test(word)) colorClass = "text-syntax-number";
-              else if (/[{}()[\]]/.test(word)) colorClass = "text-syntax-bracket";
-              return <span key={i} className={colorClass}>{word}</span>
-            })}
-          </pre>
+          {clip.clip_type === 'image' ? (
+             <img
+               src={`data:image/png;base64,${clip.content}`}
+               alt="Clipboard Image"
+               className="max-w-full max-h-[200px] object-contain"
+             />
+          ) : (
+            <pre className="font-mono text-[11px] leading-tight whitespace-pre-wrap break-all text-syntax-default">
+              {clip.content.split(/(\s+)/).map((word, i) => {
+                let colorClass = "text-syntax-default";
+                if (/^(const|let|var|function|return|import|from|class|if|else|export|default|async|await)$/.test(word)) colorClass = "text-syntax-keyword";
+                else if (/^('.*'|".*"|`.*`)$/.test(word)) colorClass = "text-syntax-string";
+                else if (/^\d+$/.test(word)) colorClass = "text-syntax-number";
+                else if (/[{}()[\]]/.test(word)) colorClass = "text-syntax-bracket";
+                return <span key={i} className={colorClass}>{word}</span>
+              })}
+            </pre>
+          )}
           <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
         </div>
 

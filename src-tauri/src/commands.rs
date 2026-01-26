@@ -3,6 +3,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use std::str::FromStr;
 use crate::database::Database;
 use std::sync::Arc;
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 struct Clip {
@@ -102,12 +103,16 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
     eprintln!("DB: Found {} clips", clips.len());
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
-        let content_str = String::from_utf8_lossy(&clip.content).to_string();
+        let content_str = if clip.clip_type == "image" {
+            BASE64.encode(&clip.content)
+        } else {
+            String::from_utf8_lossy(&clip.content).to_string()
+        };
 
         ClipboardItem {
             id: clip.uuid.clone(),
             clip_type: clip.clip_type.clone(),
-            content: content_str.clone(),
+            content: content_str,
             preview: clip.text_preview.clone(),
             is_pinned: clip.is_pinned,
             folder_id: clip.folder_id.map(|id| id.to_string()),
@@ -122,14 +127,18 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
 #[tauri::command]
 pub async fn get_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<ClipboardItem, String> {
     let pool = &db.pool;
-    
+
     let clip: Option<Clip> = sqlx::query_as(r#"SELECT * FROM clips WHERE uuid = ?"#)
         .bind(&id)
         .fetch_optional(pool).await.map_err(|e| e.to_string())?;
 
     match clip {
         Some(clip) => {
-            let content_str = String::from_utf8_lossy(&clip.content).to_string();
+            let content_str = if clip.clip_type == "image" {
+                BASE64.encode(&clip.content)
+            } else {
+                String::from_utf8_lossy(&clip.content).to_string()
+            };
 
             Ok(ClipboardItem {
                 id: clip.uuid,
@@ -149,7 +158,7 @@ pub async fn get_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result
 #[tauri::command]
 pub async fn paste_clip(id: String, window: tauri::WebviewWindow, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     let clip: Option<Clip> = sqlx::query_as(r#"SELECT * FROM clips WHERE uuid = ?"#)
         .bind(&id)
         .fetch_optional(pool).await.map_err(|e| e.to_string())?;
@@ -167,7 +176,7 @@ pub async fn paste_clip(id: String, window: tauri::WebviewWindow, db: tauri::Sta
 #[tauri::command]
 pub async fn delete_clip(id: String, hard_delete: bool, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     if hard_delete {
         sqlx::query(r#"DELETE FROM clips WHERE uuid = ?"#)
             .bind(&id)
@@ -183,7 +192,7 @@ pub async fn delete_clip(id: String, hard_delete: bool, db: tauri::State<'_, Arc
 #[tauri::command]
 pub async fn pin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     sqlx::query(r#"UPDATE clips SET is_pinned = NOT is_pinned WHERE uuid = ?"#)
         .bind(&id)
         .execute(pool).await.map_err(|e| e.to_string())?;
@@ -193,7 +202,7 @@ pub async fn pin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result
 #[tauri::command]
 pub async fn unpin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     sqlx::query(r#"UPDATE clips SET is_pinned = 0 WHERE uuid = ?"#)
         .bind(&id)
         .execute(pool).await.map_err(|e| e.to_string())?;
@@ -203,7 +212,7 @@ pub async fn unpin_clip(id: String, db: tauri::State<'_, Arc<Database>>) -> Resu
 #[tauri::command]
 pub async fn move_to_folder(clip_id: String, folder_id: Option<String>, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     let folder_id = match folder_id {
         Some(id) => Some(id.parse::<i64>().map_err(|_| "Invalid folder ID")?),
         None => None,
@@ -219,7 +228,7 @@ pub async fn move_to_folder(clip_id: String, folder_id: Option<String>, db: taur
 #[tauri::command]
 pub async fn create_folder(name: String, icon: Option<String>, color: Option<String>, db: tauri::State<'_, Arc<Database>>) -> Result<FolderItem, String> {
     let pool = &db.pool;
-    
+
     let id = sqlx::query(r#"INSERT INTO folders (name, icon, color) VALUES (?, ?, ?)"#)
         .bind(&name)
         .bind(icon.as_ref())
@@ -240,7 +249,7 @@ pub async fn create_folder(name: String, icon: Option<String>, color: Option<Str
 #[tauri::command]
 pub async fn delete_folder(id: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     let folder_id: i64 = id.parse().map_err(|_| "Invalid folder ID")?;
     sqlx::query(r#"DELETE FROM folders WHERE id = ?"#)
         .bind(folder_id)
@@ -251,9 +260,9 @@ pub async fn delete_folder(id: String, db: tauri::State<'_, Arc<Database>>) -> R
 #[tauri::command]
 pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
-    
+
     let search_pattern = format!("%{}%", query);
-    
+
     let clips: Vec<Clip> = match filter_id.as_deref() {
         Some("pinned") => {
             sqlx::query_as(r#"
@@ -294,12 +303,16 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
     };
 
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
-        let content_str = String::from_utf8_lossy(&clip.content).to_string();
+        let content_str = if clip.clip_type == "image" {
+            BASE64.encode(&clip.content)
+        } else {
+            String::from_utf8_lossy(&clip.content).to_string()
+        };
 
         ClipboardItem {
             id: clip.uuid.clone(),
             clip_type: clip.clip_type.clone(),
-            content: content_str.clone(),
+            content: content_str,
             preview: clip.text_preview.clone(),
             is_pinned: clip.is_pinned,
             folder_id: clip.folder_id.map(|id| id.to_string()),
@@ -314,7 +327,7 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
 #[tauri::command]
 pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<FolderItem>, String> {
     let pool = &db.pool;
-    
+
     let folders: Vec<Folder> = sqlx::query_as(r#"SELECT * FROM folders ORDER BY name"#)
         .fetch_all(pool).await.map_err(|e| e.to_string())?;
 
@@ -335,7 +348,7 @@ pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<Fold
 #[tauri::command]
 pub async fn get_settings(db: tauri::State<'_, Arc<Database>>) -> Result<serde_json::Value, String> {
     let pool = &db.pool;
-    
+
     let mut settings = serde_json::json!({
         "max_items": 1000,
         "auto_delete_days": 30,
@@ -373,7 +386,7 @@ pub async fn get_settings(db: tauri::State<'_, Arc<Database>>) -> Result<serde_j
 #[tauri::command]
 pub async fn save_settings(settings: serde_json::Value, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     if let Some(max_items) = settings.get("max_items").and_then(|v| v.as_i64()) {
         sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('max_items', ?)"#)
             .bind(max_items.to_string())
@@ -408,7 +421,7 @@ pub fn ping() -> Result<String, String> {
 #[tauri::command]
 pub async fn get_clipboard_history_size(db: tauri::State<'_, Arc<Database>>) -> Result<i64, String> {
     let pool = &db.pool;
-    
+
     let count: i64 = sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM clips WHERE is_deleted = 0"#)
         .fetch_one(pool).await.map_err(|e| e.to_string())?;
     Ok(count)
@@ -417,7 +430,7 @@ pub async fn get_clipboard_history_size(db: tauri::State<'_, Arc<Database>>) -> 
 #[tauri::command]
 pub async fn clear_clipboard_history(db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     sqlx::query(r#"DELETE FROM clips WHERE is_deleted = 1"#)
         .execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
@@ -426,7 +439,7 @@ pub async fn clear_clipboard_history(db: tauri::State<'_, Arc<Database>>) -> Res
 #[tauri::command]
 pub async fn clear_all_clips(db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
     let pool = &db.pool;
-    
+
     sqlx::query(r#"DELETE FROM clips"#)
         .execute(pool).await.map_err(|e| e.to_string())?;
     Ok(())
@@ -435,12 +448,12 @@ pub async fn clear_all_clips(db: tauri::State<'_, Arc<Database>>) -> Result<(), 
 #[tauri::command]
 pub async fn remove_duplicate_clips(db: tauri::State<'_, Arc<Database>>) -> Result<i64, String> {
     let pool = &db.pool;
-    
+
     let result = sqlx::query(r#"
-        DELETE FROM clips 
+        DELETE FROM clips
         WHERE id NOT IN (
-            SELECT MIN(id) 
-            FROM clips 
+            SELECT MIN(id)
+            FROM clips
             GROUP BY content_hash
         )
     "#)
@@ -452,13 +465,13 @@ pub async fn remove_duplicate_clips(db: tauri::State<'_, Arc<Database>>) -> Resu
 #[tauri::command]
 pub async fn register_global_shortcut(hotkey: String, window: tauri::WebviewWindow) -> Result<(), String> {
     let app = window.app_handle();
-    
+
     let shortcut = Shortcut::from_str(&hotkey).map_err(|e| format!("Invalid hotkey: {:?}", e))?;
-    
+
     if let Err(e) = app.global_shortcut().register(shortcut) {
         return Err(format!("Failed to register hotkey: {:?}", e));
     }
-    
+
     Ok(())
 }
 
