@@ -151,12 +151,15 @@ function ClipCell({
         </div>
 
         <div className="flex-1 bg-card p-3 overflow-hidden relative">
-          {clip.clip_type === 'image' ? (
-             <img
-               src={`data:image/png;base64,${clip.content}`}
-               alt="Clipboard Image"
-               className="max-w-full max-h-[200px] object-contain"
-             />
+          {/* Check if content is base64 image data - more reliable than clip_type */}
+          {(clip.content.startsWith('iVBOR') || clip.content.startsWith('/9j/') || clip.content.startsWith('R0lGOD') || clip.content.length > 10000) ? (
+             <div className="w-full h-full flex items-center justify-center">
+               <img
+                 src={`data:image/png;base64,${clip.content}`}
+                 alt="Clipboard Image"
+                 className="max-w-full max-h-full object-contain"
+               />
+             </div>
           ) : (
             <pre className="font-mono text-[11px] leading-tight whitespace-pre-wrap break-all text-syntax-default">
               {clip.content.split(/(\s+)/).map((word, i) => {
@@ -174,7 +177,7 @@ function ClipCell({
 
         <div className="bg-secondary px-3 py-1.5 border-t border-border flex-shrink-0">
           <span className="text-[10px] text-muted-foreground font-medium">
-            {clip.content.length} characters
+            {(clip.content.startsWith('iVBOR') || clip.content.startsWith('/9j/') || clip.content.length > 10000) ? `Image (${Math.round(clip.content.length * 0.75 / 1024)}KB)` : `${clip.content.length} characters`}
           </span>
         </div>
       </div>

@@ -109,6 +109,8 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
             String::from_utf8_lossy(&clip.content).to_string()
         };
 
+        eprintln!("Clip {}: type='{}', content_len={}", clip.uuid, clip.clip_type, content_str.len());
+
         ClipboardItem {
             id: clip.uuid.clone(),
             clip_type: clip.clip_type.clone(),
