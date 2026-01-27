@@ -70,7 +70,7 @@ function App() {
       setIsLoading(true);
       const data = await invoke<ClipboardItem[]>('get_clips', {
         filterId: folderId,
-        limit: 10000,
+        limit: 100, // Reduced from 10000 for better performance
         offset: 0,
       });
       console.log('Clips loaded:', data.length);
