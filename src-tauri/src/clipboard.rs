@@ -11,6 +11,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use windows::Win32::Foundation::{HWND, MAX_PATH};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 use windows::Win32::System::ProcessStatus::{GetModuleBaseNameW, GetModuleFileNameExW};
+use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW};
 use windows::Win32::System::DataExchange::GetClipboardOwner;
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, DestroyIcon, DrawIconEx, DI_NORMAL, GetIconInfo, ICONINFO};
 use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHFILEINFOW, SHGFI_USEFILEATTRIBUTES};
@@ -181,7 +182,7 @@ fn calculate_hash(content: &[u8]) -> String {
 
 fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>) {
     unsafe {
-        let mut hwnd = match GetClipboardOwner() {
+        let hwnd = match GetClipboardOwner() {
             Ok(h) if !h.0.is_null() => h,
             Err(e) => {
                 eprintln!("CLIPBOARD: GetClipboardOwner failed: {:?}, falling back to foreground window", e);
@@ -211,23 +212,104 @@ fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>) {
 
         let mut name_buffer = [0u16; MAX_PATH as usize];
         let name_size = GetModuleBaseNameW(process_handle, None, &mut name_buffer);
-        let app_name = if name_size > 0 {
-            Some(String::from_utf16_lossy(&name_buffer[..name_size as usize]))
+        let exe_name = if name_size > 0 {
+            String::from_utf16_lossy(&name_buffer[..name_size as usize])
         } else {
-            None
+            String::new()
         };
 
         let mut path_buffer = [0u16; MAX_PATH as usize];
         let path_size = GetModuleFileNameExW(Some(process_handle), None, &mut path_buffer);
-        let app_icon = if path_size > 0 {
-            let path = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
-            extract_icon(&path)
+        let (app_name, app_icon) = if path_size > 0 {
+            let full_path = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
+            
+            let desc = get_app_description(&full_path);
+            let final_name = if let Some(d) = desc {
+                eprintln!("CLIPBOARD: Found description '{}' for {}", d, full_path);
+                Some(d)
+            } else {
+                eprintln!("CLIPBOARD: No description for {}, using exe name '{}'", full_path, exe_name);
+                if !exe_name.is_empty() { Some(exe_name.clone()) } else { None }
+            };
+
+            let icon = extract_icon(&full_path);
+            (final_name, icon)
         } else {
-            None
+            (if !exe_name.is_empty() { Some(exe_name) } else { None }, None)
         };
 
         (app_name, app_icon)
     }
+}
+
+unsafe fn get_app_description(path: &str) -> Option<String> {
+    use std::ffi::c_void;
+
+    let wide_path: Vec<u16> = OsStr::new(path).encode_wide().chain(std::iter::once(0)).collect();
+
+    let size = GetFileVersionInfoSizeW(windows::core::PCWSTR(wide_path.as_ptr()), None);
+    if size == 0 { return None; }
+
+    let mut data = vec![0u8; size as usize];
+    if GetFileVersionInfoW(windows::core::PCWSTR(wide_path.as_ptr()), Some(0), size, data.as_mut_ptr() as *mut _).is_err() {
+        return None;
+    }
+
+    let mut lang_ptr: *mut c_void = std::ptr::null_mut();
+    let mut lang_len: u32 = 0;
+
+    let translation_query = OsStr::new("\\VarFileInfo\\Translation").encode_wide().chain(std::iter::once(0)).collect::<Vec<u16>>();
+
+    if !VerQueryValueW(data.as_ptr() as *const _, windows::core::PCWSTR(translation_query.as_ptr()), &mut lang_ptr, &mut lang_len).as_bool() {
+        return None;
+    }
+
+    if lang_len < 4 { return None; }
+    
+    let pairs = std::slice::from_raw_parts(lang_ptr as *const u16, (lang_len / 2) as usize);
+    let num_pairs = (lang_len / 4) as usize;
+
+    let mut lang_code = pairs[0];
+    let mut charset_code = pairs[1];
+
+    // Log available translations
+    for i in 0..num_pairs {
+        let code = pairs[i * 2];
+        let charset = pairs[i * 2 + 1];
+        eprintln!("CLIPBOARD: Found translation: lang={:04x}, charset={:04x}", code, charset);
+        
+        // Prioritize Chinese Simplified (0x0804)
+        if code == 0x0804 {
+            lang_code = code;
+            charset_code = charset;
+        }
+    }
+    
+    eprintln!("CLIPBOARD: Using translation: lang={:04x}, charset={:04x}", lang_code, charset_code);
+
+    let keys = ["FileDescription", "ProductName"];
+    
+    for key in keys {
+        let query_str = format!("\\StringFileInfo\\{:04x}{:04x}\\{}", lang_code, charset_code, key);
+        let query = OsStr::new(&query_str).encode_wide().chain(std::iter::once(0)).collect::<Vec<u16>>();
+        
+        let mut desc_ptr: *mut c_void = std::ptr::null_mut();
+        let mut desc_len: u32 = 0;
+        
+        if VerQueryValueW(data.as_ptr() as *const _, windows::core::PCWSTR(query.as_ptr()), &mut desc_ptr, &mut desc_len).as_bool() {
+             let desc = std::slice::from_raw_parts(desc_ptr as *const u16, desc_len as usize);
+             let len = if desc.last() == Some(&0) { desc.len() - 1 } else { desc.len() };
+             if len > 0 {
+                 let val = String::from_utf16_lossy(&desc[..len]);
+                 eprintln!("CLIPBOARD: Found {} = {}", key, val);
+                 return Some(val);
+             }
+        } else {
+             eprintln!("CLIPBOARD: Key {} not found", key);
+        }
+    }
+
+    None
 }
 
 unsafe fn extract_icon(path: &str) -> Option<String> {
@@ -275,7 +357,7 @@ unsafe fn extract_icon(path: &str) -> Option<String> {
 
     DrawIconEx(mem_dc, 0, 0, icon, width, height, 0, None, DI_NORMAL);
 
-    let mut bi = BITMAPINFOHEADER {
+    let bi = BITMAPINFOHEADER {
         biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
         biWidth: width,
         biHeight: -height,
