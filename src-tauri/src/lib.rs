@@ -113,7 +113,7 @@ pub fn run_app() {
             let _ = app_handle.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
 
             let win_clone = win.clone();
-            let _ = app_handle.global_shortcut().on_shortcut("Ctrl+Alt+V", move |_app, _shortcut, event| {
+            let _ = app_handle.global_shortcut().on_shortcut("Ctrl+Shift+V", move |_app, _shortcut, event| {
                 if event.state() == ShortcutState::Pressed {
                     position_window_at_bottom(&win_clone);
                     let _ = win_clone.show();
