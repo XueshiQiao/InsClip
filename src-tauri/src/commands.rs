@@ -34,14 +34,14 @@ struct Folder {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub(crate) struct ClipboardItem {
-    id: String,
-    clip_type: String,
-    content: String,
-    preview: String,
-    is_pinned: bool,
-    folder_id: Option<String>,
-    created_at: String,
-    source_app: Option<String>,
+    pub id: String,
+    pub clip_type: String,
+    pub content: String,
+    pub preview: String,
+    pub is_pinned: bool,
+    pub folder_id: Option<String>,
+    pub created_at: String,
+    pub source_app: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -102,14 +102,17 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, db: t
 
     eprintln!("DB: Found {} clips", clips.len());
 
-    let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
+    let items: Vec<ClipboardItem> = clips.iter().enumerate().map(|(idx, clip)| {
         let content_str = if clip.clip_type == "image" {
             BASE64.encode(&clip.content)
         } else {
             String::from_utf8_lossy(&clip.content).to_string()
         };
 
-        eprintln!("Clip {}: type='{}', content_len={}", clip.uuid, clip.clip_type, content_str.len());
+        // Only log first 10 clips to reduce noise
+        if idx < 10 {
+            eprintln!("{} Clip {}: type='{}', content_len={}", idx, clip.uuid, clip.clip_type, content_str.len());
+        }
 
         ClipboardItem {
             id: clip.uuid.clone(),

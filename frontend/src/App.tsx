@@ -27,7 +27,7 @@ function App() {
 
   useEffect(() => {
     invoke<Settings>('get_settings').then(s => setTheme(s.theme)).catch(console.error);
-    
+
     // Listen for setting changes from the settings window
     const unlisten = listen<Settings>('settings-changed', (event) => {
         setTheme(event.payload.theme);
@@ -106,7 +106,8 @@ function App() {
     } else {
         loadClips(selectedFolder);
     }
-  }, [selectedFolder, loadFolders, loadClips]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFolder]);
 
   useEffect(() => {
     console.log('Setting up clipboard listener');
@@ -133,10 +134,10 @@ function App() {
     setSearchQuery(query);
     if (query.trim()) {
       try {
-        const data = await invoke<ClipboardItem[]>('search_clips', { 
-            query, 
+        const data = await invoke<ClipboardItem[]>('search_clips', {
+            query,
             filterId: selectedFolder,
-            limit: 100 
+            limit: 100
         });
         setClips(data);
       } catch (error) {
