@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FolderItem } from '../types';
-import { Folder, Pin, Settings, Plus } from 'lucide-react';
+import { Folder, Settings, Plus } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface SidebarProps {
@@ -13,7 +13,6 @@ interface SidebarProps {
 
 const SYSTEM_FOLDERS = [
   { id: null, name: 'All', icon: Folder, is_system: true },
-  { id: 'pinned', name: 'Pinned', icon: Pin, is_system: true },
 ];
 
 export function Sidebar({
