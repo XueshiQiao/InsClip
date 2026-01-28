@@ -59,13 +59,13 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
     let pool = &db.pool;
     let preview_only = preview_only.unwrap_or(false);
 
-    eprintln!("get_clips called with filter_id: {:?}, preview_only: {}", filter_id, preview_only);
+    log::info!("get_clips called with filter_id: {:?}, preview_only: {}", filter_id, preview_only);
 
     let clips: Vec<Clip> = match filter_id.as_deref() {
         Some(id) => {
             let folder_id_num = id.parse::<i64>().ok();
             if let Some(numeric_id) = folder_id_num {
-                eprintln!("Querying for folder_id: {}", numeric_id);
+                log::info!("Querying for folder_id: {}", numeric_id);
                 sqlx::query_as(r#"
                     SELECT * FROM clips WHERE is_deleted = 0 AND folder_id = ?
                     ORDER BY created_at DESC LIMIT ? OFFSET ?
@@ -75,12 +75,12 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
                 .bind(offset)
                 .fetch_all(pool).await.map_err(|e| e.to_string())?
             } else {
-                eprintln!("Unknown folder_id, returning empty");
+                log::info!("Unknown folder_id, returning empty");
                 Vec::new()
             }
         }
         None => {
-            eprintln!("Querying for items, offset: {}, limit: {}", offset, limit);
+            log::info!("Querying for items, offset: {}, limit: {}", offset, limit);
             sqlx::query_as(r#"
                 SELECT * FROM clips WHERE is_deleted = 0
                 ORDER BY created_at DESC LIMIT ? OFFSET ?
@@ -91,7 +91,7 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
         }
     };
 
-    eprintln!("DB: Found {} clips", clips.len());
+    log::info!("DB: Found {} clips", clips.len());
 
     let items: Vec<ClipboardItem> = clips.iter().enumerate().map(|(idx, clip)| {
         let content_str = if preview_only && clip.clip_type == "image" {
@@ -105,7 +105,7 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
 
         // Only log first 10 clips to reduce noise
         if idx < 10 {
-            eprintln!("{} Clip {}: type='{}', content_len={}", idx, clip.uuid, clip.clip_type, content_str.len());
+            log::trace!("{} Clip {}: type='{}', content_len={}", idx, clip.uuid, clip.clip_type, content_str.len());
         }
 
         ClipboardItem {
@@ -418,9 +418,9 @@ pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -
     // Check actual autostart status
     if let Ok(is_enabled) = app.autolaunch().is_enabled() {
         settings["startup_with_windows"] = serde_json::json!(is_enabled);
-        eprintln!("autostart enabled: {}", is_enabled);
+        log::info!("autostart enabled: {}", is_enabled);
     } else {
-        eprintln!("autostart not enabled");
+        log::info!("autostart not enabled");
     }
 
     Ok(settings)
@@ -468,6 +468,16 @@ pub fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 pub fn ping() -> Result<String, String> {
     Ok("pong".to_string())
+}
+
+#[tauri::command]
+pub fn test_log() -> Result<String, String> {
+    log::trace!("[TEST] Trace level log");
+    log::debug!("[TEST] Debug level log");
+    log::info!("[TEST] Info level log");
+    log::warn!("[TEST] Warn level log");
+    log::error!("[TEST] Error level log");
+    Ok("Logs emitted - check console".to_string())
 }
 
 #[tauri::command]

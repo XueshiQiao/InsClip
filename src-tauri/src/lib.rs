@@ -42,6 +42,12 @@ pub fn run_app() {
     let db_arc = Arc::new(db);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .targets([
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+            ]).build())
         .plugin(tauri_plugin_clipboard::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -71,6 +77,7 @@ pub fn run_app() {
             }
         })
         .setup(move |app| {
+            log::info!("WinPaste starting...");
             let handle = app.handle().clone();
             let db_for_clipboard = db_arc.clone();
 
@@ -80,7 +87,7 @@ pub fn run_app() {
 
             let icon_data = include_bytes!("../icons/tray.png");
             let icon = Image::from_bytes(icon_data).map_err(|e| {
-                eprintln!("Failed to load icon: {:?}", e);
+                log::info!("Failed to load icon: {:?}", e);
                 e
             })?;
 
@@ -160,7 +167,8 @@ pub fn run_app() {
             commands::remove_ignored_app,
             commands::get_ignored_apps,
             commands::pick_file,
-            commands::get_layout_config
+            commands::get_layout_config,
+            commands::test_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

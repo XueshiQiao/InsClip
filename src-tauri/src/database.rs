@@ -99,7 +99,7 @@ impl Database {
         let apps = sqlx::query_scalar::<_, String>("SELECT app_name FROM ignored_apps ORDER BY app_name")
             .fetch_all(&self.pool)
             .await?;
-        eprintln!("DB: Ignored apps: {:?}", apps);
+        log::info!("DB: Ignored apps: {:?}", apps);
         Ok(apps)
     }
 

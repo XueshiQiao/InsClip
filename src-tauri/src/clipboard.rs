@@ -42,10 +42,10 @@ pub fn init(app: &AppHandle, db: Arc<Database>) {
     // Attempt to start the monitor
     if let Some(plugin) = app.try_state::<ClipboardPlugin>() {
          if let Err(e) = plugin.start_monitor(app.clone()) {
-             eprintln!("CLIPBOARD: Failed to start monitor: {}", e);
+             log::info!("CLIPBOARD: Failed to start monitor: {}", e);
          }
     } else {
-        eprintln!("CLIPBOARD: Plugin state not found");
+        log::info!("CLIPBOARD: Plugin state not found");
     }
 
     // Listen to the generic update event from the plugin
@@ -118,7 +118,7 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
     if let Ok(mut lock) = IGNORE_HASH.lock() {
         if let Some(ignore_hash) = lock.take() {
             if ignore_hash == clip_hash {
-                eprintln!("CLIPBOARD: Ignoring update for hash {} (detect self-paste)", ignore_hash);
+                log::info!("CLIPBOARD: Ignoring update for hash {} (detect self-paste)", ignore_hash);
                 return;
             }
         }
@@ -127,23 +127,23 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
     // capture source app info
     // app_name is likely the friendly name, exe_name is the executable filename
     let (source_app, source_icon, exe_name, full_path) = get_clipboard_owner_app_info();
-    eprintln!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}", source_app, exe_name, full_path);
+    log::info!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}", source_app, exe_name, full_path);
 
 
     // Check if the app is in the ignore list
     // We check against both the full path and the executable name
     if let Some(ref path) = full_path {
         // If we have text content, maybe print debug
-        // eprintln!("CLIPBOARD: Checking ignore for path: {}", path);
+        // log::info!("CLIPBOARD: Checking ignore for path: {}", path);
         if let Ok(true) = db.is_app_ignored(path).await {
-             eprintln!("CLIPBOARD: Ignoring content from ignored app (path match): {}", path);
+             log::info!("CLIPBOARD: Ignoring content from ignored app (path match): {}", path);
              return;
         }
     }
 
     if let Some(ref exe) = exe_name {
         if let Ok(true) = db.is_app_ignored(exe).await {
-             eprintln!("CLIPBOARD: Ignoring content from ignored app (exe match): {}", exe);
+             log::info!("CLIPBOARD: Ignoring content from ignored app (exe match): {}", exe);
              return;
         }
     }
@@ -213,11 +213,11 @@ fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>, Option<Str
         let hwnd = match GetClipboardOwner() {
             Ok(h) if !h.0.is_null() => h,
             Err(e) => {
-                eprintln!("CLIPBOARD: GetClipboardOwner failed: {:?}, falling back to foreground window", e);
+                log::info!("CLIPBOARD: GetClipboardOwner failed: {:?}, falling back to foreground window", e);
                 GetForegroundWindow()
             },
             Ok(_) => {
-                eprintln!("CLIPBOARD: GetClipboardOwner returned null, falling back to foreground window");
+                log::info!("CLIPBOARD: GetClipboardOwner returned null, falling back to foreground window");
                 GetForegroundWindow()
             }
         };
@@ -304,7 +304,7 @@ unsafe fn get_app_description(path: &str) -> Option<String> {
     for i in 0..num_pairs {
         let code = pairs[i * 2];
         let charset = pairs[i * 2 + 1];
-        eprintln!("CLIPBOARD: Found translation: lang={:04x}, charset={:04x}", code, charset);
+        log::info!("CLIPBOARD: Found translation: lang={:04x}, charset={:04x}", code, charset);
 
         // Prioritize Chinese Simplified (0x0804)
         if code == 0x0804 {
@@ -313,7 +313,7 @@ unsafe fn get_app_description(path: &str) -> Option<String> {
         }
     }
 
-    eprintln!("CLIPBOARD: Using translation: lang={:04x}, charset={:04x}", lang_code, charset_code);
+    log::info!("CLIPBOARD: Using translation: lang={:04x}, charset={:04x}", lang_code, charset_code);
 
     let keys = ["FileDescription", "ProductName"];
 
@@ -329,11 +329,11 @@ unsafe fn get_app_description(path: &str) -> Option<String> {
              let len = if desc.last() == Some(&0) { desc.len() - 1 } else { desc.len() };
              if len > 0 {
                  let val = String::from_utf16_lossy(&desc[..len]);
-                 eprintln!("CLIPBOARD: Found {} = {}", key, val);
+                 log::info!("CLIPBOARD: Found {} = {}", key, val);
                  return Some(val);
              }
         } else {
-             eprintln!("CLIPBOARD: Key {} not found", key);
+             log::info!("CLIPBOARD: Key {} not found", key);
         }
     }
 
