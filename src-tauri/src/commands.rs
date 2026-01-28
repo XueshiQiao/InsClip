@@ -522,6 +522,48 @@ pub fn show_window(window: tauri::WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn add_ignored_app(app_name: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    db.add_ignored_app(&app_name).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn remove_ignored_app(app_name: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    db.remove_ignored_app(&app_name).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_ignored_apps(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<String>, String> {
+    db.get_ignored_apps().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn pick_file() -> Result<String, String> {
+    use std::process::Command;
+    #[cfg(target_os = "windows")]
+    {
+        let ps_script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'Executables (*.exe)|*.exe|All files (*.*)|*.*'; $null = $d.ShowDialog(); $d.FileName";
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-Command", ps_script])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if path.is_empty() {
+                return Err("No file selected".to_string());
+            }
+            Ok(path)
+        } else {
+            Err("Failed to open file picker".to_string())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("Not supported on this OS".to_string())
+    }
+}
+
+#[tauri::command]
 pub fn get_layout_config() -> serde_json::Value {
     serde_json::json!({
         "window_height": crate::constants::WINDOW_HEIGHT,

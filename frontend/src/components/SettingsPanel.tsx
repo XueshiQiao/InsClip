@@ -1,5 +1,5 @@
 import { Settings } from '../types';
-import { X, Save, Trash2, Info } from 'lucide-react';
+import { X, Save, Trash2, Info, Plus, FolderOpen } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -14,9 +14,45 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
   const [historySize, setHistorySize] = useState<number>(0);
   const [recordingHotkey, setRecordingHotkey] = useState(false);
 
+  const [ignoredApps, setIgnoredApps] = useState<string[]>([]);
+  const [newIgnoredApp, setNewIgnoredApp] = useState('');
+
   useEffect(() => {
     invoke<number>('get_clipboard_history_size').then(setHistorySize).catch(console.error);
+    invoke<string[]>('get_ignored_apps').then(setIgnoredApps).catch(console.error);
   }, []);
+
+  const handleAddIgnoredApp = async () => {
+    if (!newIgnoredApp.trim()) return;
+    try {
+        await invoke('add_ignored_app', { appName: newIgnoredApp.trim() });
+        setIgnoredApps(prev => [...prev, newIgnoredApp.trim()].sort());
+        setNewIgnoredApp('');
+    } catch (e) {
+        console.error(e);
+    }
+  };
+
+  const handleBrowseFile = async () => {
+    try {
+        const path = await invoke<string>('pick_file');
+        // Extract filename from path (Windows)
+        const filename = path.split('\\').pop() || path;
+        setNewIgnoredApp(filename);
+    } catch (e) {
+         // User cancelled or error
+         console.log('File picker cancelled or failed', e);
+    }
+  };
+
+  const handleRemoveIgnoredApp = async (app: string) => {
+    try {
+        await invoke('remove_ignored_app', { appName: app });
+        setIgnoredApps(prev => prev.filter(a => a !== app));
+    } catch (e) {
+        console.error(e);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -184,6 +220,56 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
               }`}
             />
           </button>
+        </div>
+
+        <div className="space-y-3 border-t border-border pt-4">
+            <label className="block">
+                <span className="text-sm font-medium">Ignored Applications</span>
+                <p className="text-xs text-muted-foreground">Prevent copying from specific apps. Browse to select executable or type name.</p>
+            </label>
+
+            <div className="flex gap-2">
+                <input
+                    type="text"
+                    value={newIgnoredApp}
+                    onChange={(e) => setNewIgnoredApp(e.target.value)}
+                    placeholder="app.exe"
+                    className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddIgnoredApp()}
+                />
+                <button
+                    onClick={handleBrowseFile}
+                    className="btn btn-secondary px-3"
+                    title="Browse executable"
+                >
+                    <FolderOpen size={16} />
+                </button>
+                <button
+                    onClick={handleAddIgnoredApp}
+                    disabled={!newIgnoredApp.trim()}
+                    className="btn btn-secondary px-3"
+                    title="Add to list"
+                >
+                    <Plus size={16} />
+                </button>
+            </div>
+
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {ignoredApps.length === 0 && (
+                    <p className="text-xs italic text-muted-foreground">No ignored applications.</p>
+                )}
+                {ignoredApps.map(app => (
+                    <div key={app} className="flex items-center justify-between rounded-md bg-accent/50 px-3 py-2 text-sm">
+                        <span>{app}</span>
+                        <button
+                            onClick={() => handleRemoveIgnoredApp(app)}
+                            className="text-muted-foreground hover:text-destructive"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
 
         <div className="border-t border-border pt-4">

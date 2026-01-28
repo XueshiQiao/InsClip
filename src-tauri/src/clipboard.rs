@@ -124,8 +124,29 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
         }
     }
 
-    // capture source app info only if we are proceeding
-    let (source_app, source_icon) = get_clipboard_owner_app_info();
+    // capture source app info
+    // app_name is likely the friendly name, exe_name is the executable filename
+    let (source_app, source_icon, exe_name, full_path) = get_clipboard_owner_app_info();
+    eprintln!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}", source_app, exe_name, full_path);
+
+
+    // Check if the app is in the ignore list
+    // We check against both the full path and the executable name
+    if let Some(ref path) = full_path {
+        // If we have text content, maybe print debug
+        // eprintln!("CLIPBOARD: Checking ignore for path: {}", path);
+        if let Ok(true) = db.is_app_ignored(path).await {
+             eprintln!("CLIPBOARD: Ignoring content from ignored app (path match): {}", path);
+             return;
+        }
+    }
+
+    if let Some(ref exe) = exe_name {
+        if let Ok(true) = db.is_app_ignored(exe).await {
+             eprintln!("CLIPBOARD: Ignoring content from ignored app (exe match): {}", exe);
+             return;
+        }
+    }
 
     // DB Logic
     let pool = &db.pool;
@@ -187,7 +208,7 @@ fn calculate_hash(content: &[u8]) -> String {
     format!("{:x}", result)
 }
 
-fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>) {
+fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>, Option<String>, Option<String>) {
     unsafe {
         let hwnd = match GetClipboardOwner() {
             Ok(h) if !h.0.is_null() => h,
@@ -202,19 +223,19 @@ fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>) {
         };
 
         if hwnd.0.is_null() {
-            return (None, None);
+            return (None, None, None, None);
         }
 
         let mut process_id = 0;
         GetWindowThreadProcessId(hwnd, Some(&mut process_id));
 
         if process_id == 0 {
-            return (None, None);
+            return (None, None, None, None);
         }
 
         let process_handle = match OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, process_id) {
             Ok(h) => h,
-            Err(_) => return (None, None),
+            Err(_) => return (None, None, None, None),
         };
 
         let mut name_buffer = [0u16; MAX_PATH as usize];
@@ -227,25 +248,25 @@ fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>) {
 
         let mut path_buffer = [0u16; MAX_PATH as usize];
         let path_size = GetModuleFileNameExW(Some(process_handle), None, &mut path_buffer);
-        let (app_name, app_icon) = if path_size > 0 {
-            let full_path = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
+        let (app_name, app_icon, full_path) = if path_size > 0 {
+            let full_path_str = String::from_utf16_lossy(&path_buffer[..path_size as usize]);
 
-            let desc = get_app_description(&full_path);
+            let desc = get_app_description(&full_path_str);
             let final_name = if let Some(d) = desc {
-                eprintln!("CLIPBOARD: Found description '{}' for {}", d, full_path);
                 Some(d)
             } else {
-                eprintln!("CLIPBOARD: No description for {}, using exe name '{}'", full_path, exe_name);
                 if !exe_name.is_empty() { Some(exe_name.clone()) } else { None }
             };
 
-            let icon = extract_icon(&full_path);
-            (final_name, icon)
+            let icon = extract_icon(&full_path_str);
+            (final_name, icon, Some(full_path_str))
         } else {
-            (if !exe_name.is_empty() { Some(exe_name) } else { None }, None)
+            (if !exe_name.is_empty() { Some(exe_name.clone()) } else { None }, None, None)
         };
 
-        (app_name, app_icon)
+        // Return (Friendly Name, Icon, Executable Name, Full Path)
+        let exe_val = if !exe_name.is_empty() { Some(exe_name) } else { None };
+        (app_name, app_icon, exe_val, full_path)
     }
 }
 

@@ -9,8 +9,21 @@ A beautiful clipboard history manager for Windows, built with Rust + Tauri + Rea
 - 🖥️ **Support multiple Displays** - Show on the active display
 - 🔍 **Search** - Quickly find previously copied content
 - 📁 **Folders** - Organize clips into custom folders
+- 🚫 **Application Exceptions** - Ignore content from specific sensitive apps (e.g., Password Managers)
 - 🎨 **Beautiful UI** - Modern dark theme with smooth animations
 - ⚡ **Fast & Lightweight** - Built with Rust for performance
+
+## Application Exceptions (Ignored Apps)
+
+WinPaste allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
+
+**Logic & Behavior:**
+- **How to manage:** Go to Settings -> Ignored Applications. You can browse for an executable (`.exe`) or strictly type its name.
+- **Privacy Protection:** When content is copied, WinPaste checks the source application against your ignore list.
+- **Robust Matching:** The system checks against **both**:
+    1.  **Executable Name** (e.g., `notepad.exe`) - Matches any instance of this app regardless of location.
+    2.  **Full File Path** (e.g., `C:\Windows\System32\notepad.exe`) - Matches only the specific installed instance.
+- **Case Insensitive:** Matching is case-insensitive to ensure reliable detection on Windows.
 
 ## Tech Stack
 

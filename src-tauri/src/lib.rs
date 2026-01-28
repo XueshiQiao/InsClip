@@ -154,6 +154,10 @@ pub fn run_app() {
             commands::remove_duplicate_clips,
             commands::register_global_shortcut,
             commands::show_window,
+            commands::add_ignored_app,
+            commands::remove_ignored_app,
+            commands::get_ignored_apps,
+            commands::pick_file,
             commands::get_layout_config
         ])
         .run(tauri::generate_context!())
