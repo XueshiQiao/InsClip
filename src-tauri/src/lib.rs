@@ -121,14 +121,30 @@ pub fn run_app() {
             let win = app_handle.get_webview_window("main").unwrap();
             let _ = app_handle.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
 
-            let win_clone = win.clone();
-            let _ = app_handle.global_shortcut().on_shortcut("Ctrl+Shift+V", move |_app, _shortcut, event| {
-                if event.state() == ShortcutState::Pressed {
-                    position_window_at_bottom(&win_clone);
-                    let _ = win_clone.show();
-                    let _ = win_clone.set_focus();
-                }
-            });
+            // Load saved hotkey from database or use default
+            let db_for_hotkey = db_for_clipboard.clone();
+            let saved_hotkey = get_runtime().unwrap().block_on(async {
+                db_for_hotkey.get_setting("hotkey").await.ok().flatten()
+            }).unwrap_or_else(|| "Ctrl+Shift+V".to_string());
+
+            log::info!("Registering hotkey: {}", saved_hotkey);
+
+            // Parse the hotkey string into a Shortcut
+            use std::str::FromStr;
+            use tauri_plugin_global_shortcut::Shortcut;
+
+            if let Ok(shortcut) = Shortcut::from_str(&saved_hotkey) {
+                let win_clone = win.clone();
+                let _ = app_handle.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        position_window_at_bottom(&win_clone);
+                        let _ = win_clone.show();
+                        let _ = win_clone.set_focus();
+                    }
+                });
+            } else {
+                log::error!("Failed to parse hotkey: {}", saved_hotkey);
+            }
 
             let handle_for_clip = app_handle.clone();
             let db_for_clip = db_for_clipboard.clone();

@@ -22,7 +22,8 @@
     "react-dom": "^18.2.0",
     "react-window": "^2.2.5",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^2.1.0"
+    "tailwind-merge": "^2.1.0",
+    "use-shortcut-recorder": "^2.2.0"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

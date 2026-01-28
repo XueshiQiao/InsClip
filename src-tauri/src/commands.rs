@@ -526,14 +526,33 @@ pub async fn remove_duplicate_clips(db: tauri::State<'_, Arc<Database>>) -> Resu
 
 #[tauri::command]
 pub async fn register_global_shortcut(hotkey: String, window: tauri::WebviewWindow) -> Result<(), String> {
-    let app = window.app_handle();
+    use tauri_plugin_global_shortcut::ShortcutState;
 
+    let app = window.app_handle();
     let shortcut = Shortcut::from_str(&hotkey).map_err(|e| format!("Invalid hotkey: {:?}", e))?;
 
-    if let Err(e) = app.global_shortcut().register(shortcut) {
+    // Unregister all existing shortcuts first
+    if let Err(e) = app.global_shortcut().unregister_all() {
+        log::warn!("Failed to unregister existing shortcuts: {:?}", e);
+    }
+
+    // Get the main window for the handler
+    let main_window = app.get_webview_window("main")
+        .ok_or_else(|| "Main window not found".to_string())?;
+
+    // Register the new shortcut with the window show handler
+    let win_clone = main_window.clone();
+    if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+        if event.state() == ShortcutState::Pressed {
+            crate::position_window_at_bottom(&win_clone);
+            let _ = win_clone.show();
+            let _ = win_clone.set_focus();
+        }
+    }) {
         return Err(format!("Failed to register hotkey: {:?}", e));
     }
 
+    log::info!("Registered global shortcut: {}", hotkey);
     Ok(())
 }
 

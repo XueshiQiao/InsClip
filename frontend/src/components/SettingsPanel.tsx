@@ -1,9 +1,10 @@
 import { Settings } from '../types';
-import { X, Save, Trash2, Info, Plus, FolderOpen } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { X, Save, Trash2, Plus, FolderOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useShortcutRecorder } from 'use-shortcut-recorder';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -13,8 +14,25 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ settings: initialSettings, onClose, onSave }: SettingsPanelProps) {
   const [settings, setSettings] = useState<Settings>(initialSettings);
-  const [historySize, setHistorySize] = useState<number>(0);
-  const [recordingHotkey, setRecordingHotkey] = useState(false);
+  const [_historySize, setHistorySize] = useState<number>(0);
+  const [isRecordingMode, setIsRecordingMode] = useState(false);
+
+  // Use use-shortcut-recorder for recording (shows current keys held in real-time)
+  const {
+    shortcut,
+    savedShortcut,
+    startRecording: startRecordingLib,
+    stopRecording: stopRecordingLib,
+    clearLastRecording,
+  } = useShortcutRecorder({
+    minModKeys: 1, // Require at least one modifier
+  });
+
+  // Start recording mode
+  const handleStartRecording = () => {
+    setIsRecordingMode(true);
+    startRecordingLib();
+  };
 
   const [ignoredApps, setIgnoredApps] = useState<string[]>([]);
   const [newIgnoredApp, setNewIgnoredApp] = useState('');
@@ -99,42 +117,44 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
     });
   };
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!recordingHotkey) return;
+  // Format shortcut array into Tauri-compatible string (e.g., ["Control", "Shift", "KeyV"] -> "Ctrl+Shift+V")
+  const formatHotkey = (keys: string[]): string => {
+    return keys.map(k => {
+      if (k === 'Control') return 'Ctrl';
+      if (k === 'Alt') return 'Alt';
+      if (k === 'Shift') return 'Shift';
+      if (k === 'Meta') return 'Cmd';
+      // Convert KeyX to X
+      if (k.startsWith('Key')) return k.slice(3);
+      // Convert Digit0-9 to 0-9
+      if (k.startsWith('Digit')) return k.slice(5);
+      return k;
+    }).join('+');
+  };
 
-      e.preventDefault();
-      e.stopPropagation();
-
-      const modifiers: string[] = [];
-      if (e.ctrlKey) modifiers.push('Ctrl');
-      if (e.altKey) modifiers.push('Alt');
-      if (e.shiftKey) modifiers.push('Shift');
-      if (e.metaKey) modifiers.push('Cmd');
-
-      const key = e.key.toUpperCase();
-      if (key.length === 1 && /[A-Z0-9]/.test(key)) {
-        modifiers.push(key);
-      } else if (key === ' ') {
-        modifiers.push('Space');
-      } else if (key === 'ESCAPE') {
-        setRecordingHotkey(false);
-        return;
-      }
-
-      const newHotkey = modifiers.join('+');
+  // Handle saving the recorded hotkey
+  const handleSaveHotkey = async () => {
+    if (savedShortcut.length > 0) {
+      const newHotkey = formatHotkey(savedShortcut);
       setSettings((prev) => ({ ...prev, hotkey: newHotkey }));
-      setRecordingHotkey(false);
-    },
-    [recordingHotkey]
-  );
 
-  useEffect(() => {
-    if (recordingHotkey) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
+      try {
+        await invoke('register_global_shortcut', { hotkey: newHotkey });
+        toast.success(`Hotkey updated to ${newHotkey}`);
+      } catch (error) {
+        toast.error(`Failed to register hotkey: ${error}`);
+      }
     }
-  }, [recordingHotkey, handleKeyDown]);
+    stopRecordingLib();
+    setIsRecordingMode(false);
+  };
+
+  // Handle cancel recording
+  const handleCancelRecording = () => {
+    stopRecordingLib();
+    clearLastRecording();
+    setIsRecordingMode(false);
+  };
 
   return (
     <>
@@ -207,7 +227,7 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
             <div className="space-y-3">
               <label className="block">
                 <span className="text-sm font-medium">Storage Limit</span>
-                <span className="ml-2 text-xs text-muted-foreground">({historySize} items stored)</span>
+                <span className="ml-2 text-xs text-muted-foreground">({_historySize} items stored)</span>
               </label>
               <input
                 type="range"
@@ -263,22 +283,40 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
                 <span className="text-sm font-medium">Global Hotkey</span>
                 <p className="text-xs text-muted-foreground">Toggle the clipboard window</p>
               </label>
-              <button
-                onClick={() => {
-                  setRecordingHotkey(true);
-                }}
-                className={`flex w-full items-center gap-2 rounded-lg border border-border bg-input px-3 py-2 text-sm transition-colors ${
-                  recordingHotkey ? 'border-primary ring-2 ring-primary' : ''
-                }`}
-              >
-                {recordingHotkey ? (
-                  <span className="animate-pulse text-primary">Press any key...</span>
-                ) : (
+              {isRecordingMode ? (
+                <div className="space-y-2">
+                  <div className="flex w-full items-center gap-2 rounded-lg border border-primary ring-2 ring-primary bg-input px-3 py-2 text-sm">
+                    <span className="animate-pulse text-primary">
+                      {shortcut.length > 0
+                        ? formatHotkey(shortcut)
+                        : savedShortcut.length > 0
+                          ? formatHotkey(savedShortcut)
+                          : 'Press keys...'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSaveHotkey}
+                      disabled={savedShortcut.length === 0}
+                      className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={handleCancelRecording}
+                      className="px-3 py-1 text-xs rounded bg-muted text-muted-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleStartRecording}
+                  className="flex w-full items-center gap-2 rounded-lg border border-border bg-input px-3 py-2 text-sm transition-colors hover:border-primary"
+                >
                   <span className="font-mono font-medium bg-accent px-2 py-0.5 rounded text-xs">{settings.hotkey}</span>
-                )}
-              </button>
-              {recordingHotkey && (
-                  <p className="text-xs text-muted-foreground">Press <span className="font-mono">ESC</span> to cancel</p>
+                </button>
               )}
             </div>
         </section>
