@@ -118,6 +118,24 @@ function ClipCard({
 }) {
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
+  // Generate distinct color based on source app name
+  const getAppColor = (name: string) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const colors = [
+      'bg-red-400', 'bg-orange-400', 'bg-amber-400', 
+      'bg-green-400', 'bg-emerald-400', 'bg-teal-400', 
+      'bg-cyan-400', 'bg-sky-400', 'bg-blue-400', 
+      'bg-indigo-400', 'bg-violet-400', 'bg-purple-400', 
+      'bg-fuchsia-400', 'bg-pink-400', 'bg-rose-400'
+    ];
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const headerColor = getAppColor(title);
+
   return (
     <div
       style={{
@@ -130,13 +148,13 @@ function ClipCard({
         onClick={onSelect}
         onDoubleClick={onPaste}
         className={clsx(
-          'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg bg-card border border-border',
+          'w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg bg-card border border-border relative',
           isSelected
             ? 'ring-4 ring-blue-500 transform scale-[1.02] z-10'
             : 'hover:ring-2 hover:ring-primary/30 hover:-translate-y-1'
         )}
       >
-        <div className="bg-primary px-4 py-2 flex items-center gap-2 flex-shrink-0">
+        <div className={clsx(headerColor, "px-4 py-2 flex items-center gap-2 flex-shrink-0")}>
           {clip.source_icon && (
             <img
               src={`data:image/png;base64,${clip.source_icon}`}
@@ -144,7 +162,7 @@ function ClipCard({
               className="w-4 h-4 object-contain"
             />
           )}
-          <span className="font-bold text-primary-foreground text-[10px] uppercase tracking-wider truncate flex-1">
+          <span className="font-bold text-white text-[10px] uppercase tracking-wider truncate flex-1 shadow-sm">
             {title}
           </span>
         </div>
