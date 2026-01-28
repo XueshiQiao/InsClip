@@ -78,12 +78,12 @@ pub fn run_app() {
             }
         })
         .setup(move |app| {
-            log::info!("WinPaste starting...");
+            log::info!("InsClip starting...");
             let handle = app.handle().clone();
             let db_for_clipboard = db_arc.clone();
 
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let show_i = MenuItem::with_id(app, "show", "Show WinPaste", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show InsClip", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             let icon_data = include_bytes!("../icons/tray.png");
@@ -95,7 +95,7 @@ pub fn run_app() {
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .menu(&menu)
-                .tooltip("WinPaste")
+                .tooltip("InsClip")
                 .on_menu_event(move |app, event| {
                     if event.id.as_ref() == "quit" {
                         app.exit(0);
@@ -319,7 +319,7 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow) {
 fn get_data_dir() -> std::path::PathBuf {
     let current_dir = std::env::current_dir().unwrap_or(std::path::PathBuf::from("."));
     match dirs::data_dir() {
-        Some(path) => path.join("WinPaste"),
-        None => current_dir.join("WinPaste"),
+        Some(path) => path.join("InsClip"),
+        None => current_dir.join("InsClip"),
     }
 }

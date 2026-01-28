@@ -3,7 +3,7 @@
     windows_subsystem = "windows"
 )]
 
-use winpaste::run_app;
+use insclip::run_app;
 
 fn main() {
     run_app();

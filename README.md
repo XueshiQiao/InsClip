@@ -1,4 +1,4 @@
-# WinPaste - Clipboard History Manager
+# InsClip - Clipboard History Manager
 
 A beautiful clipboard history manager for Windows, built with Rust + Tauri + React + TypeScript.
 
@@ -15,11 +15,11 @@ A beautiful clipboard history manager for Windows, built with Rust + Tauri + Rea
 
 ## Application Exceptions (Ignored Apps)
 
-WinPaste allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
+InsClip allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
 
 **Logic & Behavior:**
 - **How to manage:** Go to Settings -> Ignored Applications. You can browse for an executable (`.exe`) or strictly type its name.
-- **Privacy Protection:** When content is copied, WinPaste checks the source application against your ignore list.
+- **Privacy Protection:** When content is copied, InsClip checks the source application against your ignore list.
 - **Robust Matching:** The system checks against **both**:
     1.  **Executable Name** (e.g., `notepad.exe`) - Matches any instance of this app regardless of location.
     2.  **Full File Path** (e.g., `C:\Windows\System32\notepad.exe`) - Matches only the specific installed instance.
@@ -64,7 +64,7 @@ pnpm tauri build
 ## Project Structure
 
 ```
-WinPaste/
+InsClip/
 ├── src-tauri/           # Rust backend
 │   ├── src/
 │   │   ├── main.rs      # App entry point
@@ -104,14 +104,14 @@ Failure to follow this convention (e.g., passing `snake_case` from the frontend)
 The application is designed to appear on the **active monitor** (the one containing the mouse cursor) whenever the global hotkey is pressed.
 
 - **Detection Logic:**
-  - Located in `src-tauri/src/lib.rs` (`animate_window_show`).
-  - Uses the Windows API `GetCursorPos` (via the `windows` crate) to determine the global mouse coordinates.
-  - Iterates through `window.available_monitors()` to find the monitor whose bounds contain the cursor point.
-  - Fallback: If the cursor position cannot be determined, it defaults to `window.current_monitor()`.
+    - Located in `src-tauri/src/lib.rs` (`animate_window_show`).
+    - Uses the Windows API `GetCursorPos` (via the `windows` crate) to determine the global mouse coordinates.
+    - Iterates through `window.available_monitors()` to find the monitor whose bounds contain the cursor point.
+    - Fallback: If the cursor position cannot be determined, it defaults to `window.current_monitor()`.
 
 - **Positioning:**
-  - The window is positioned at the bottom of the detected active monitor's work area (excluding taskbar).
-  - An animation slides the window up from the bottom edge.
+    - The window is positioned at the bottom of the detected active monitor's work area (excluding taskbar).
+    - An animation slides the window up from the bottom edge.
 
 ### Adjusting the Layout
 

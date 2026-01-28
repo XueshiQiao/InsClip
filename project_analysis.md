@@ -1,7 +1,7 @@
-# WinPaste Project Analysis
+# InsClip Project Analysis
 
 ## 1. Project Overview
-**WinPaste** is a native Windows clipboard history manager application built with a modern stack. It runs as a desktop application with a background service to monitor clipboard changes.
+**InsClip** is a native Windows clipboard history manager application built with a modern stack. It runs as a desktop application with a background service to monitor clipboard changes.
 
 - **Type:** Desktop Application (Tauri)
 - **Primary Goal:** Store and manage clipboard history (Text, with scaffolding for other types).

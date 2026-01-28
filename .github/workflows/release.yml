@@ -56,7 +56,7 @@ jobs:
         with:
           projectPath: src-tauri
           tagName: ${{ github.ref_name }}
-          releaseName: 'WinPaste v${{ github.ref_name }}'
+          releaseName: 'InsClip v${{ github.ref_name }}'
           releaseBody: |
             ## What's Changed
 
