@@ -138,7 +138,7 @@ const ClipCard = memo(function ClipCard({
       );
     } else {
       return (
-        <pre className="cursor-text select-text whitespace-pre-wrap break-all font-mono text-[11px] leading-tight text-foreground">
+        <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-tight text-foreground">
           <span>{clip.content.substring(0, PREVIEW_CHAR_LIMIT)}</span>
         </pre>
       );
