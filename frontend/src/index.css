@@ -155,6 +155,10 @@
     user-select: none;
   }
 
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
   .resize-handle {
     position: absolute;
     background: transparent;

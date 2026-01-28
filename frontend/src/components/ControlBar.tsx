@@ -12,6 +12,11 @@ interface ControlBarProps {
   showSearch: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onMoveClip: (clipId: string, folderId: string | null) => void;
+  isDragging: boolean;
+  dragTargetFolderId: string | null;
+  onDragHover: (folderId: string | null) => void;
+  onDragLeave: () => void;
 }
 
 export function ControlBar({
@@ -24,6 +29,10 @@ export function ControlBar({
   showSearch,
   searchQuery,
   onSearchChange,
+  isDragging,
+  dragTargetFolderId,
+  onDragHover,
+  onDragLeave,
 }: ControlBarProps) {
   // Merge "All" (null), "Pinned" (special), and user folders
   const allCategories = [
@@ -32,12 +41,23 @@ export function ControlBar({
     ...folders.filter((f) => !f.is_system),
   ];
 
+  const handleMouseEnter = (folderId: string | null) => {
+    if (isDragging) {
+      onDragHover(folderId);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    onDragLeave();
+  };
+
+
   return (
     <div className="drag-area flex min-h-[52px] items-center gap-4 border-b border-border bg-background/90 px-6 py-2">
       {/* Search Toggle / Input */}
       <div
         className={clsx(
-          'flex items-center transition-all duration-300',
+          'no-drag flex items-center transition-all duration-300',
           showSearch ? 'w-[300px]' : 'w-10'
         )}
       >
@@ -76,7 +96,10 @@ export function ControlBar({
       </div>
 
       {/* Category Pills (Always visible) */}
-      <div className="no-scrollbar mask-gradient-right flex flex-1 items-center gap-2 overflow-x-auto p-1">
+      <div
+        className="no-scrollbar mask-gradient-right flex flex-1 items-center gap-2 overflow-x-auto p-1"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
         {allCategories.map((cat) => {
           const isActive = selectedFolder === cat.id;
 
@@ -92,11 +115,19 @@ export function ControlBar({
             <button
               key={cat.id ?? 'all'}
               onClick={() => onSelectFolder(cat.id)}
+              onMouseEnter={() => handleMouseEnter(cat.id)}
+              onMouseLeave={handleMouseLeave}
+              onMouseUp={() => {
+                 // MouseUp logic is handled globally in App.tsx, checking valid hover target
+              }}
+              style={{ WebkitAppRegion: 'no-drag' } as any}
               className={clsx(
                 'whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-all',
                 isActive
                   ? activeClass
-                  : 'bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
+                  : isDragging && cat.id === dragTargetFolderId // Only highlight if it matches the current drag target
+                    ? 'ring-2 ring-primary bg-accent' // Show highlight
+                    : 'bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
               )}
             >
               {cat.name}

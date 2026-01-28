@@ -15,6 +15,7 @@ interface ClipListProps {
   onDelete: (clipId: string) => void;
   onPin: (clipId: string) => void;
   onLoadMore: () => void;
+  onDragStart: (clipId: string, startX: number, startY: number) => void;
 }
 
 export function ClipList({
@@ -25,6 +26,7 @@ export function ClipList({
   onSelectClip,
   onPaste,
   onLoadMore,
+  onDragStart,
 }: ClipListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +92,7 @@ export function ClipList({
           isSelected={selectedClipId === clip.id}
           onSelect={() => onSelectClip(clip.id)}
           onPaste={() => onPaste(clip.id)}
+          onDragStart={onDragStart}
         />
       ))}
 
@@ -111,11 +114,13 @@ const ClipCard = memo(function ClipCard({
   isSelected,
   onSelect,
   onPaste,
+  onDragStart,
 }: {
   clip: ClipboardItem;
   isSelected: boolean;
   onSelect: () => void;
   onPaste: () => void;
+  onDragStart: (clipId: string, startX: number, startY: number) => void;
 }) {
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
@@ -168,6 +173,12 @@ const ClipCard = memo(function ClipCard({
 
   const headerColor = getAppColor(title);
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only left click
+    if (e.button !== 0) return;
+    onDragStart(clip.id, e.clientX, e.clientY);
+  };
+
   return (
     <div
       style={{
@@ -177,6 +188,7 @@ const ClipCard = memo(function ClipCard({
       className="flex-shrink-0"
     >
       <div
+        onMouseDown={handleMouseDown}
         onClick={onSelect}
         onDoubleClick={onPaste}
         className={clsx(

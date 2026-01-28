@@ -6,6 +6,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { ClipboardItem, FolderItem, Settings } from './types';
 import { ClipList } from './components/ClipList';
 import { ControlBar } from './components/ControlBar';
+import { DragPreview } from './components/DragPreview';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
 
@@ -20,9 +21,22 @@ function App() {
   const [hasMore, setHasMore] = useState(true);
   const [theme, setTheme] = useState('dark');
 
+  // Simulated Drag State
+  const [draggingClipId, setDraggingClipId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [dragTargetFolderId, setDragTargetFolderId] = useState<string | null>(null);
+
+  // Using refs for event handlers to access latest state without re-attaching listeners
+  const dragStateRef = useRef({
+    isDragging: false,
+    clipId: null as string | null,
+    targetFolderId: null as string | null,
+    pendingDrag: null as { clipId: string; startX: number; startY: number } | null,
+  });
+
   useTheme(theme);
 
-  const window = getCurrentWindow();
+  const appWindow = getCurrentWindow();
   const selectedFolderRef = useRef(selectedFolder);
   selectedFolderRef.current = selectedFolder;
 
@@ -140,6 +154,102 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFolder]);
 
+  // Handle global mouse events for simulated drag
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      const state = dragStateRef.current;
+
+      // If we are already dragging, update position
+      if (state.isDragging) {
+        setDragPosition({ x: e.clientX, y: e.clientY });
+        return;
+      }
+
+      // If we have a pending drag, check threshold
+      if (state.pendingDrag) {
+        const dx = e.clientX - state.pendingDrag.startX;
+        const dy = e.clientY - state.pendingDrag.startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 5) {
+          // Start actual drag
+          setDraggingClipId(state.pendingDrag.clipId);
+          setDragPosition({ x: e.clientX, y: e.clientY });
+          dragStateRef.current.isDragging = true;
+          dragStateRef.current.clipId = state.pendingDrag.clipId;
+          dragStateRef.current.pendingDrag = null;
+        }
+      }
+    };
+
+    const handleGlobalMouseUp = (_: MouseEvent) => {
+      // Always clear pending drag on mouse up
+      if (dragStateRef.current.pendingDrag) {
+        dragStateRef.current.pendingDrag = null;
+      }
+
+      if (dragStateRef.current.isDragging) {
+        const { clipId, targetFolderId } = dragStateRef.current;
+        console.log('[SimulatedDrag] MouseUp. Clip:', clipId, 'Target:', targetFolderId);
+
+        finishDrag();
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
+
+  const startDrag = (clipId: string, startX: number, startY: number) => {
+    // Instead of starting immediately, set pending
+    dragStateRef.current.pendingDrag = { clipId, startX, startY };
+    dragStateRef.current.clipId = clipId;
+    // We don't set state yet, avoiding re-render until threshold passed
+  };
+
+  const finishDrag = () => {
+    if (dragStateRef.current.targetFolderId !== undefined && dragStateRef.current.clipId) {
+        // We only move if targetFolderId was explicitly set by a hover event.
+        // Wait, how do we distinguish "Not Hovering" vs "Hovering 'All' (null)"?
+        // We will make ControlBar pass a specific sentinel for "No Target" when leaving?
+        // Or simply: ControlBar tracks hover. If hover, it calls setDragTargetFolderId.
+        // If we drop and dragTargetFolderId is valid, we move.
+        // BUT 'null' is a valid folder ID (All).
+        // Let's use a generic 'undefined' for "No Target".
+    }
+
+    // Actually, simpler:
+    // When MouseUp happens, we check dragTargetFolderId state.
+    // If it is NOT undefined, we execute move.
+
+    // IMPORTANT: State updates in React are async. accessing `dragTargetFolderId` state inside event listener might be stale?
+    // That's why we use `dragStateRef`.
+
+    const { clipId, targetFolderId } = dragStateRef.current;
+    if (clipId && targetFolderId !== undefined && targetFolderId !== 'NO_TARGET') {
+        handleMoveClip(clipId, targetFolderId);
+    }
+
+    setDraggingClipId(null);
+    setDragTargetFolderId(null);
+    dragStateRef.current = { isDragging: false, clipId: null, targetFolderId: 'NO_TARGET', pendingDrag: null };
+  };
+
+  const handleDragHover = (folderId: string | null) => {
+      setDragTargetFolderId(folderId);
+      dragStateRef.current.targetFolderId = folderId;
+  };
+
+  const handleDragLeave = () => {
+      setDragTargetFolderId(null);
+      dragStateRef.current.targetFolderId = 'NO_TARGET';
+  };
+
   useEffect(() => {
     console.log('Setting up clipboard listener');
     const unlistenClipboard = listen('clipboard-change', (event) => {
@@ -155,7 +265,7 @@ function App() {
   }, [refreshCurrentFolder]);
 
   useKeyboard({
-    onClose: () => window.hide(),
+    onClose: () => appWindow.hide(),
     onSearch: () => setShowSearch(true),
     onDelete: () => handleDelete(selectedClipId),
     onPin: () => handlePin(selectedClipId),
@@ -213,7 +323,7 @@ function App() {
   const handlePaste = async (clipId: string) => {
     try {
       await invoke('paste_clip', { id: clipId });
-      window.hide();
+      appWindow.hide();
     } catch (error) {
       console.error('Failed to paste clip:', error);
     }
@@ -245,8 +355,37 @@ function App() {
     }
   }, [hasMore, isLoading, selectedFolder, loadClips]);
 
+  const handleMoveClip = async (clipId: string, folderId: string | null) => {
+    try {
+      await invoke('move_to_folder', { clipId, folderId });
+
+      // Update local state to reflect the move
+      if (selectedFolder) {
+        // If we are in a specific folder (not All)
+        if (folderId !== selectedFolder) {
+          // If moved to a different folder, remove from current view
+          setClips((prev) => prev.filter((c) => c.id !== clipId));
+        }
+      } else {
+        // If we are in "All clips" view, just update the folder_id
+        setClips((prev) =>
+          prev.map((c) => (c.id === clipId ? { ...c, folder_id: folderId } : c))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to move clip:', error);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground">
+      {draggingClipId && (
+        <DragPreview
+          clip={clips.find(c => c.id === draggingClipId)!}
+          position={dragPosition}
+        />
+      )}
+
       <ControlBar
         folders={folders}
         selectedFolder={selectedFolder}
@@ -266,6 +405,12 @@ function App() {
           if (name) handleCreateFolder(name);
         }}
         onMoreClick={openSettings}
+        onMoveClip={handleMoveClip} // Legacy, but kept for interface
+        // Simulated Drag Props
+        isDragging={!!draggingClipId}
+        dragTargetFolderId={dragTargetFolderId}
+        onDragHover={handleDragHover}
+        onDragLeave={handleDragLeave}
       />
 
       <main className="no-scrollbar relative flex-1">
@@ -280,6 +425,8 @@ function App() {
           onDelete={handleDelete}
           onPin={handlePin}
           onLoadMore={loadMore}
+          // Simulated Drag Props
+          onDragStart={startDrag}
         />
       </main>
     </div>
