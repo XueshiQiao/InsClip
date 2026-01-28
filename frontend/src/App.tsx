@@ -7,6 +7,7 @@ import { ClipboardItem, FolderItem, Settings } from './types';
 import { ClipList } from './components/ClipList';
 import { ControlBar } from './components/ControlBar';
 import { DragPreview } from './components/DragPreview';
+import { ContextMenu } from './components/ContextMenu';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
 
@@ -405,12 +406,109 @@ function App() {
     }
   };
 
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{
+    type: 'card' | 'folder';
+    x: number;
+    y: number;
+    itemId: string;
+  } | null>(null);
+
+  // New Folder Modal Rename Mode
+  const [folderModalMode, setFolderModalMode] = useState<'create' | 'rename'>('create');
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+
+  const handleContextMenu = useCallback((
+    e: React.MouseEvent,
+    type: 'card' | 'folder',
+    itemId: string
+  ) => {
+    e.preventDefault();
+    setContextMenu({
+      type,
+      x: e.clientX,
+      y: e.clientY,
+      itemId,
+    });
+  }, []);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  // Updated Create Folder to handle Rename
+  const handleCreateOrRenameFolder = async (name: string) => {
+    if (folderModalMode === 'create') {
+      await handleCreateFolder(name);
+    } else if (folderModalMode === 'rename' && editingFolderId) {
+      try {
+        await invoke('rename_folder', { id: editingFolderId, name });
+        await loadFolders();
+      } catch (error) {
+        console.error('Failed to rename folder:', error);
+      }
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!folderId) return;
+    // Optional: Confirm dialog? For now, instant delete as requested or per typical minimal UI
+    // But deleting folder with clips inside might be dangerous if clips are lost.
+    // The previous analysis suggested clips should be preserved (set folder_id = null) or just deleted.
+    // For now, let's assume valid delete request.
+    try {
+        await invoke('delete_folder', { id: folderId });
+        if (selectedFolder === folderId) {
+            setSelectedFolder(null);
+        }
+        await loadFolders();
+        refreshTotalCount();
+    } catch (error) {
+        console.error('Failed to delete folder:', error);
+    }
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground">
       {draggingClipId && (
         <DragPreview
           clip={clips.find(c => c.id === draggingClipId)!}
           position={dragPosition}
+        />
+      )}
+
+      {contextMenu && (
+        <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={handleCloseContextMenu}
+            options={
+                contextMenu.type === 'card'
+                ? [
+                    {
+                        label: 'Delete',
+                        danger: true,
+                        onClick: () => handleDelete(contextMenu.itemId),
+                    },
+                  ]
+                : [
+                    {
+                        label: 'Rename',
+                        onClick: () => {
+                            setFolderModalMode('rename');
+                            setEditingFolderId(contextMenu.itemId);
+                            const folder = folders.find(f => f.id === contextMenu.itemId);
+                            setNewFolderName(folder ? folder.name : '');
+                            setShowAddFolderModal(true);
+                        },
+                    },
+                    {
+                        label: 'Delete',
+                        danger: true,
+                        onClick: () => handleDeleteFolder(contextMenu.itemId),
+                    },
+                  ]
+            }
         />
       )}
 
@@ -428,8 +526,9 @@ function App() {
           setShowSearch(!showSearch);
         }}
         onAddClick={() => {
+          setFolderModalMode('create');
+          setNewFolderName('');
           setShowAddFolderModal(true);
-          // Focus is handled by autoFocus on input
         }}
         onMoreClick={openSettings}
         onMoveClip={handleMoveClip} // Legacy, but kept for interface
@@ -439,6 +538,9 @@ function App() {
         onDragHover={handleDragHover}
         onDragLeave={handleDragLeave}
         totalClipCount={totalClipCount}
+        onFolderContextMenu={(e, folderId) => {
+            if (folderId) handleContextMenu(e, 'folder', folderId);
+        }}
       />
 
       <main className="no-scrollbar relative flex-1">
@@ -455,13 +557,16 @@ function App() {
           onLoadMore={loadMore}
           // Simulated Drag Props
           onDragStart={startDrag}
+          onCardContextMenu={(e, clipId) => handleContextMenu(e, 'card', clipId)}
         />
 
-        {/* Add Folder Modal Overlay */}
+        {/* Add/Rename Folder Modal Overlay */}
         {showAddFolderModal && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
             <div className="w-80 rounded-xl border border-border bg-card p-6 shadow-2xl">
-              <h3 className="mb-4 text-lg font-semibold text-foreground">Create New Folder</h3>
+              <h3 className="mb-4 text-lg font-semibold text-foreground">
+                  {folderModalMode === 'create' ? 'Create New Folder' : 'Rename Folder'}
+              </h3>
               <input
                 autoFocus
                 type="text"
@@ -472,7 +577,7 @@ function App() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     if (newFolderName.trim()) {
-                      handleCreateFolder(newFolderName.trim());
+                      handleCreateOrRenameFolder(newFolderName.trim());
                       setNewFolderName('');
                       setShowAddFolderModal(false);
                     }
@@ -495,14 +600,14 @@ function App() {
                 <button
                   onClick={() => {
                     if (newFolderName.trim()) {
-                      handleCreateFolder(newFolderName.trim());
+                      handleCreateOrRenameFolder(newFolderName.trim());
                       setNewFolderName('');
                       setShowAddFolderModal(false);
                     }
                   }}
                   className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                 >
-                  Create
+                  {folderModalMode === 'create' ? 'Create' : 'Save'}
                 </button>
               </div>
             </div>

@@ -18,6 +18,7 @@ interface ControlBarProps {
   onDragHover: (folderId: string | null) => void;
   onDragLeave: () => void;
   totalClipCount: number;
+  onFolderContextMenu?: (e: React.MouseEvent, folderId: string) => void;
 }
 
 export function ControlBar({
@@ -35,6 +36,7 @@ export function ControlBar({
   onDragHover,
   onDragLeave,
   totalClipCount,
+  onFolderContextMenu,
 }: ControlBarProps) {
   // Merge "All" (null), "Pinned" (special), and user folders
   const allCategories = [
@@ -121,6 +123,11 @@ export function ControlBar({
               onMouseLeave={handleMouseLeave}
               onMouseUp={() => {
                  // MouseUp logic is handled globally in App.tsx, checking valid hover target
+              }}
+              onContextMenu={(e) => {
+                  if (onFolderContextMenu && cat.id && cat.id !== 'pinned') {
+                      onFolderContextMenu(e, cat.id);
+                  }
               }}
               style={{ WebkitAppRegion: 'no-drag' } as any}
               className={clsx(

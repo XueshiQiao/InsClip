@@ -143,6 +143,7 @@ pub fn run_app() {
             commands::unpin_clip,
             commands::move_to_folder,
             commands::create_folder,
+            commands::rename_folder,
             commands::delete_folder,
             commands::search_clips,
             commands::get_folders,

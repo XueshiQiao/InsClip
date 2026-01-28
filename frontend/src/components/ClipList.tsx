@@ -16,6 +16,7 @@ interface ClipListProps {
   onPin: (clipId: string) => void;
   onLoadMore: () => void;
   onDragStart: (clipId: string, startX: number, startY: number) => void;
+  onCardContextMenu?: (e: React.MouseEvent, clipId: string) => void;
 }
 
 export function ClipList({
@@ -27,6 +28,7 @@ export function ClipList({
   onPaste,
   onLoadMore,
   onDragStart,
+  onCardContextMenu,
 }: ClipListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -93,6 +95,7 @@ export function ClipList({
           onSelect={() => onSelectClip(clip.id)}
           onPaste={() => onPaste(clip.id)}
           onDragStart={onDragStart}
+          onContextMenu={(e) => onCardContextMenu?.(e, clip.id)}
         />
       ))}
 
@@ -115,12 +118,14 @@ const ClipCard = memo(function ClipCard({
   onSelect,
   onPaste,
   onDragStart,
+  onContextMenu,
 }: {
   clip: ClipboardItem;
   isSelected: boolean;
   onSelect: () => void;
   onPaste: () => void;
   onDragStart: (clipId: string, startX: number, startY: number) => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }) {
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
@@ -179,6 +184,11 @@ const ClipCard = memo(function ClipCard({
     onDragStart(clip.id, e.clientX, e.clientY);
   };
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      onContextMenu?.(e);
+  };
+
   return (
     <div
       style={{
@@ -191,6 +201,7 @@ const ClipCard = memo(function ClipCard({
         onMouseDown={handleMouseDown}
         onClick={onSelect}
         onDoubleClick={onPaste}
+        onContextMenu={handleContextMenu}
         className={clsx(
           'relative flex h-full w-full cursor-pointer select-none flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg transition-all',
           isSelected

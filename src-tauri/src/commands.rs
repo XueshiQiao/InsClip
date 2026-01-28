@@ -286,6 +286,18 @@ pub async fn delete_folder(id: String, db: tauri::State<'_, Arc<Database>>) -> R
 }
 
 #[tauri::command]
+pub async fn rename_folder(id: String, name: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    let pool = &db.pool;
+
+    let folder_id: i64 = id.parse().map_err(|_| "Invalid folder ID")?;
+    sqlx::query(r#"UPDATE folders SET name = ? WHERE id = ?"#)
+        .bind(name)
+        .bind(folder_id)
+        .execute(pool).await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
 
@@ -357,7 +369,7 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
 pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<FolderItem>, String> {
     let pool = &db.pool;
 
-    let folders: Vec<Folder> = sqlx::query_as(r#"SELECT * FROM folders ORDER BY name"#)
+    let folders: Vec<Folder> = sqlx::query_as(r#"SELECT * FROM folders ORDER BY created_at"#)
         .fetch_all(pool).await.map_err(|e| e.to_string())?;
 
     // Get counts for all folders in one query
