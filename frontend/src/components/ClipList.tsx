@@ -2,7 +2,7 @@ import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
 import { useRef, useMemo } from 'react';
 import { memo } from 'react';
-import { LAYOUT, TOTAL_COLUMN_WIDTH } from '../constants';
+import { LAYOUT, TOTAL_COLUMN_WIDTH, PREVIEW_CHAR_LIMIT } from '../constants';
 
 interface ClipListProps {
   clips: ClipboardItem[];
@@ -134,7 +134,7 @@ const ClipCard = memo(function ClipCard({
     } else {
       return (
         <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-tight text-foreground">
-          <span>{clip.content}</span>
+          <span>{clip.content.substring(0, PREVIEW_CHAR_LIMIT)}</span>
         </pre>
       );
     }
