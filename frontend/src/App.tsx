@@ -11,6 +11,7 @@ import { ContextMenu } from './components/ContextMenu';
 import { FolderModal } from './components/FolderModal';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
+import { Toaster, toast } from 'sonner';
 
 function App() {
   const [clips, setClips] = useState<ClipboardItem[]>([]);
@@ -310,8 +311,10 @@ function App() {
       // Refresh counts
       loadFolders();
       refreshTotalCount();
+      toast.success('Clip deleted');
     } catch (error) {
       console.error('Failed to delete clip:', error);
+      toast.error('Failed to delete clip');
     }
   };
 
@@ -329,8 +332,10 @@ function App() {
     if (clip) {
       try {
         await navigator.clipboard.writeText(clip.content);
+        toast.success('Copied to clipboard');
       } catch (error) {
         console.error('Failed to copy to clipboard:', error);
+        toast.error('Failed to copy');
       }
     }
   };
@@ -409,22 +414,25 @@ function App() {
   const handleCreateOrRenameFolder = async (name: string) => {
     if (folderModalMode === 'create') {
       await handleCreateFolder(name);
+      toast.success(`Folder "${name}" created`);
+      setShowAddFolderModal(false);
+      setNewFolderName('');
     } else if (folderModalMode === 'rename' && editingFolderId) {
       try {
         await invoke('rename_folder', { id: editingFolderId, name });
         await loadFolders();
+        toast.success(`Renamed to "${name}"`);
+        setShowAddFolderModal(false);
+        setNewFolderName('');
       } catch (error) {
         console.error('Failed to rename folder:', error);
+        toast.error('Failed to rename folder');
       }
     }
   };
 
   const handleDeleteFolder = async (folderId: string) => {
     if (!folderId) return;
-    // Optional: Confirm dialog? For now, instant delete as requested or per typical minimal UI
-    // But deleting folder with clips inside might be dangerous if clips are lost.
-    // The previous analysis suggested clips should be preserved (set folder_id = null) or just deleted.
-    // For now, let's assume valid delete request.
     try {
         await invoke('delete_folder', { id: folderId });
         if (selectedFolder === folderId) {
@@ -432,8 +440,10 @@ function App() {
         }
         await loadFolders();
         refreshTotalCount();
+        toast.success('Folder deleted');
     } catch (error) {
         console.error('Failed to delete folder:', error);
+        toast.error('Failed to delete folder');
     }
   };
 
@@ -540,6 +550,7 @@ function App() {
             onSubmit={handleCreateOrRenameFolder}
         />
       </main>
+      <Toaster richColors position="bottom-center" theme={theme === 'light' ? 'light' : 'dark'} />
     </div>
   );
 }

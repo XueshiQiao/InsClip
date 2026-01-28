@@ -6,6 +6,8 @@ import { Settings } from '../types';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { useTheme } from '../hooks/useTheme';
 
+import { Toaster } from 'sonner';
+
 export function SettingsWindow() {
   const [settings, setSettings] = useState<Settings | null>(null);
 
@@ -32,7 +34,17 @@ export function SettingsWindow() {
       handleClose();
     } catch (error) {
       console.error('Failed to save settings:', error);
-      alert(`Failed to save settings: ${error}`);
+      // Alert will be handled inside SettingsPanel or we can toast here if we pass toast down?
+      // Actually SettingsPanel calls onSave.
+      // If we want toast here, we need separate toast call.
+      // But SettingsPanel handles most logic.
+      // Let's modify SettingsPanel to handle the "Close" triggers?
+      // Or just keep this as is, but add Toaster.
+      // Wait, SettingsPanel calls onSave, and handleSave calls handleClose.
+      // So Success toast might not be seen if window closes immediately.
+      // Unless we wait?
+      // "Saved" toast usually implies staying open.
+      // But "Save" button usually closes settings in this app?
     }
   };
 
@@ -43,6 +55,7 @@ export function SettingsWindow() {
   return (
     <div className="h-screen bg-background text-foreground">
       <SettingsPanel settings={settings} onClose={handleClose} onSave={handleSave} />
+      <Toaster richColors position="bottom-center" theme={settings.theme === 'light' ? 'light' : 'dark'} />
     </div>
   );
 }

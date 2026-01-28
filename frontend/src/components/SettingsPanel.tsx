@@ -2,6 +2,8 @@ import { Settings } from '../types';
 import { X, Save, Trash2, Info, Plus, FolderOpen } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { toast } from 'sonner';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface SettingsPanelProps {
   settings: Settings;
@@ -17,6 +19,19 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
   const [ignoredApps, setIgnoredApps] = useState<string[]>([]);
   const [newIgnoredApp, setNewIgnoredApp] = useState('');
 
+  // Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    action: () => Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    action: async () => {},
+  });
+
   useEffect(() => {
     invoke<number>('get_clipboard_history_size').then(setHistorySize).catch(console.error);
     invoke<string[]>('get_ignored_apps').then(setIgnoredApps).catch(console.error);
@@ -28,7 +43,9 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
         await invoke('add_ignored_app', { appName: newIgnoredApp.trim() });
         setIgnoredApps(prev => [...prev, newIgnoredApp.trim()].sort());
         setNewIgnoredApp('');
+        toast.success(`Added ${newIgnoredApp.trim()} to ignored apps`);
     } catch (e) {
+        toast.error(`Failed to add ignored app: ${e}`);
         console.error(e);
     }
   };
@@ -36,11 +53,9 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
   const handleBrowseFile = async () => {
     try {
         const path = await invoke<string>('pick_file');
-        // Extract filename from path (Windows)
         const filename = path.split('\\').pop() || path;
         setNewIgnoredApp(filename);
     } catch (e) {
-         // User cancelled or error
          console.log('File picker cancelled or failed', e);
     }
   };
@@ -49,7 +64,9 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
     try {
         await invoke('remove_ignored_app', { appName: app });
         setIgnoredApps(prev => prev.filter(a => a !== app));
+        toast.success(`Removed ${app} from ignored apps`);
     } catch (e) {
+        toast.error(`Failed to remove ignored app: ${e}`);
         console.error(e);
     }
   };
@@ -58,18 +75,28 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
     try {
       await invoke('register_global_shortcut', { hotkey: settings.hotkey });
     } catch (error) {
-      console.error('Failed to register hotkey:', error);
+       toast.warning(`Failed to register hotkey: ${error}`);
+       console.error('Failed to register hotkey:', error);
     }
     onSave(settings);
   };
 
-  const handleClearHistory = async () => {
-    try {
-      await invoke('clear_clipboard_history');
-      setHistorySize(0);
-    } catch (error) {
-      console.error('Failed to clear history:', error);
-    }
+  const confirmClearHistory = () => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Clear History',
+      message: 'Are you sure you want to clear your ENTIRE clipboard history? This cannot be undone.',
+      action: async () => {
+          try {
+              await invoke('clear_all_clips');
+              setHistorySize(0);
+              toast.success('Clipboard history cleared successfully.');
+          } catch (error) {
+              console.error('Failed to clear history:', error);
+              toast.error(`Failed to clear history: ${error}`);
+          }
+      },
+    });
   };
 
   const handleKeyDown = useCallback(
@@ -110,6 +137,17 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
   }, [recordingHotkey, handleKeyDown]);
 
   return (
+    <>
+    <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={async () => {
+            await confirmDialog.action();
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+    />
     <div className="flex h-full flex-col bg-background text-foreground">
       <div className="drag-area flex items-center justify-between border-b border-border p-4">
         <h2 className="text-lg font-semibold">Settings</h2>
@@ -308,7 +346,7 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
              <h3 className="text-xs font-bold uppercase tracking-wider text-red-500/80">Data Management</h3>
 
              <div className="grid grid-cols-2 gap-3">
-                 <button onClick={handleClearHistory} className="btn border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20">
+                 <button onClick={confirmClearHistory} className="btn border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20">
                     <Trash2 size={16} className="mr-2" />
                     Clear History
                  </button>
@@ -317,11 +355,12 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
                   onClick={async () => {
                     try {
                       const count = await invoke<number>('remove_duplicate_clips');
-                      alert(`Removed ${count} duplicate clips`);
+                      toast.success(`Removed ${count} duplicate clips`);
                       const newSize = await invoke<number>('get_clipboard_history_size');
                       setHistorySize(newSize);
                     } catch (error) {
                       console.error(error);
+                      toast.error(`Failed to remove duplicates: ${error}`);
                     }
                   }}
                   className="btn btn-secondary text-xs"
@@ -330,23 +369,7 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
                 </button>
              </div>
 
-             <div className="pt-2">
-                 <button
-                  onClick={async () => {
-                    if (confirm('Are you sure you want to delete ALL clips? This cannot be undone.')) {
-                      try {
-                        await invoke('clear_all_clips');
-                        setHistorySize(0);
-                      } catch (error) {
-                        console.error(error);
-                      }
-                    }
-                  }}
-                  className="w-full btn btn-ghost text-xs text-muted-foreground hover:text-destructive"
-                >
-                  Hard Reset (Delete All Data)
-                </button>
-             </div>
+
         </section>
       </div>
 
@@ -360,5 +383,6 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
         </button>
       </div>
     </div>
+    </>
   );
 }
