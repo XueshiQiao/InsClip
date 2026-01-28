@@ -285,7 +285,7 @@ pub async fn rename_folder(id: String, name: String, db: tauri::State<'_, Arc<Da
 }
 
 #[tauri::command]
-pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
+pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, offset: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
 
     let search_pattern = format!("%{}%", query);
@@ -296,12 +296,13 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
             if let Some(numeric_id) = folder_id_num {
                 sqlx::query_as(r#"
                     SELECT * FROM clips WHERE is_deleted = 0 AND folder_id = ? AND (text_preview LIKE ? OR content LIKE ?)
-                    ORDER BY created_at DESC LIMIT ?
+                    ORDER BY created_at DESC LIMIT ? OFFSET ?
                 "#)
                 .bind(numeric_id)
                 .bind(&search_pattern)
                 .bind(&search_pattern)
                 .bind(limit)
+                .bind(offset)
                 .fetch_all(pool).await.map_err(|e| e.to_string())?
             } else {
                 Vec::new()
@@ -310,11 +311,12 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
         None => {
             sqlx::query_as(r#"
                 SELECT * FROM clips WHERE is_deleted = 0 AND (text_preview LIKE ? OR content LIKE ?)
-                ORDER BY created_at DESC LIMIT ?
+                ORDER BY created_at DESC LIMIT ? OFFSET ?
             "#)
             .bind(&search_pattern)
             .bind(&search_pattern)
             .bind(limit)
+            .bind(offset)
             .fetch_all(pool).await.map_err(|e| e.to_string())?
         }
     };
@@ -371,6 +373,8 @@ pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<Fold
             item_count: *count_map.get(&folder.id).unwrap_or(&0),
         }
     }).collect();
+
+    //println!("folder items: {:#?}", items);
 
     Ok(items)
 }

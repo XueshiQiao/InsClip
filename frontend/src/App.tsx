@@ -88,7 +88,7 @@ function App() {
   }, []);
 
   const loadClips = useCallback(
-    async (folderId: string | null, append: boolean = false) => {
+    async (folderId: string | null, append: boolean = false, searchQuery: string = '') => {
       try {
 
         setIsLoading(true);
@@ -96,12 +96,23 @@ function App() {
         const currentOffset = append ? clips.length : 0;
 
 
-        const data = await invoke<ClipboardItem[]>('get_clips', {
-          filterId: folderId,
-          limit: 20, // Reverted to 20 per user request
-          offset: currentOffset,
-          previewOnly: false, // Load full image data directly
-        });
+        let data: ClipboardItem[];
+
+        if (searchQuery.trim()) {
+          data = await invoke<ClipboardItem[]>('search_clips', {
+            query: searchQuery,
+            filterId: folderId,
+            limit: 20,
+            offset: currentOffset,
+          });
+        } else {
+          data = await invoke<ClipboardItem[]>('get_clips', {
+            filterId: folderId,
+            limit: 20,
+            offset: currentOffset,
+            previewOnly: false,
+          });
+        }
 
 
 
@@ -138,20 +149,24 @@ function App() {
   }, []);
 
   const refreshCurrentFolder = useCallback(() => {
+    loadClips(selectedFolderRef.current, false, searchQuery);
+  }, [loadClips, searchQuery]);
 
-    loadClips(selectedFolderRef.current);
-  }, [loadClips]);
+
+
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
 
   useEffect(() => {
-
     loadFolders();
     if (searchQuery.trim()) {
-      handleSearch(searchQuery);
+      loadClips(selectedFolder, false, searchQuery);
     } else {
       loadClips(selectedFolder);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFolder]);
+  }, [selectedFolder, searchQuery]);
 
   // Handle global mouse events for simulated drag
   useEffect(() => {
@@ -284,23 +299,7 @@ function App() {
     onDelete: () => handleDelete(selectedClipId),
   });
 
-  const handleSearch = async (query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      try {
-        const data = await invoke<ClipboardItem[]>('search_clips', {
-          query,
-          filterId: selectedFolder,
-          limit: 100,
-        });
-        setClips(data);
-      } catch (error) {
-        console.error('Failed to search clips:', error);
-      }
-    } else {
-      loadClips(selectedFolder);
-    }
-  };
+
 
   const handleDelete = async (clipId: string | null) => {
     if (!clipId) return;
@@ -347,9 +346,9 @@ function App() {
 
   const loadMore = useCallback(() => {
     if (hasMore && !isLoading) {
-      loadClips(selectedFolder, true);
+      loadClips(selectedFolder, true, searchQuery);
     }
-  }, [hasMore, isLoading, selectedFolder, loadClips]);
+  }, [hasMore, isLoading, selectedFolder, loadClips, searchQuery]);
 
   const handleMoveClip = async (clipId: string, folderId: string | null) => {
     try {

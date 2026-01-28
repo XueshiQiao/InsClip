@@ -39,7 +39,7 @@ export function ControlBar({
   onFolderContextMenu,
 }: ControlBarProps) {
   const allCategories = [
-    { id: null, name: 'Clipboard History', count: totalClipCount },
+    { id: null, name: 'All', count: totalClipCount },
     ...folders.map((f) => ({ ...f, count: f.item_count })),
   ];
 
