@@ -33,7 +33,7 @@ export function ControlBar({
   ];
 
   return (
-    <div className="flex items-center gap-4 px-6 py-4 border-b border-border bg-background/90 drag-area min-h-[73px]">
+    <div className="flex items-center gap-4 px-6 py-2 border-b border-border bg-background/90 drag-area min-h-[52px]">
       {/* Search Toggle / Input */}
       <div className={clsx("flex items-center transition-all duration-300", showSearch ? "w-[300px]" : "w-10")}>
         {showSearch ? (
