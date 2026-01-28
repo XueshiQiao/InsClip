@@ -41,17 +41,13 @@ export function SearchBar({ query, onQueryChange, onClear }: SearchBarProps) {
         placeholder="Search clips... (Ctrl+F)"
         className="search-input pl-10 pr-20"
       />
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+      <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
         {query && (
-          <button
-            onClick={onClear}
-            className="icon-button p-1"
-            title="Clear search"
-          >
+          <button onClick={onClear} className="icon-button p-1" title="Clear search">
             <X size={14} />
           </button>
         )}
-        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-accent">
+        <div className="flex items-center gap-1 rounded bg-accent px-1.5 py-0.5">
           <Keyboard size={10} className="text-muted-foreground" />
           <span className="text-[10px] text-muted-foreground">ESC</span>
         </div>

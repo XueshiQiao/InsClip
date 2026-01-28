@@ -23,12 +23,10 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 262.1 83.3% 57.8%;
-    
+
     --sidebar-background: 210 20% 98%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-border: 214.3 31.8% 91.4%;
-
-    
   }
 
   .dark {
@@ -56,20 +54,20 @@
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
-
-    
   }
 
   * {
     @apply border-border;
   }
 
-  html, body, #root {
-    @apply h-full w-full overflow-hidden bg-transparent m-0 p-0;
+  html,
+  body,
+  #root {
+    @apply m-0 h-full w-full overflow-hidden bg-transparent p-0;
   }
 
   body {
-    @apply font-sans antialiased text-foreground;
+    @apply font-sans text-foreground antialiased;
   }
 
   ::-webkit-scrollbar {
@@ -83,7 +81,7 @@
 
 @layer components {
   .clip-card {
-    @apply relative bg-card border border-border rounded-xl p-4 transition-all duration-200;
+    @apply relative rounded-xl border border-border bg-card p-4 transition-all duration-200;
   }
 
   .clip-card:hover {
@@ -95,7 +93,7 @@
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground transition-all duration-200;
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all duration-200;
   }
 
   .sidebar-item:hover {
@@ -107,11 +105,11 @@
   }
 
   .search-input {
-    @apply w-full bg-input border border-border rounded-lg px-4 py-2 text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200;
+    @apply w-full rounded-lg border border-border bg-input px-4 py-2 text-foreground placeholder-muted-foreground transition-all duration-200 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
@@ -131,25 +129,25 @@
   }
 
   .icon-button {
-    @apply p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-200;
+    @apply rounded-lg p-2 text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground;
   }
 
   .folder-badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
   }
 
   .keyboard-shortcut {
-    @apply inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded bg-muted text-xs text-muted-foreground font-mono;
+    @apply inline-flex h-6 min-w-[24px] items-center justify-center rounded bg-muted px-1.5 font-mono text-xs text-muted-foreground;
   }
 }
 
 @layer utilities {
   .glass {
-    @apply backdrop-blur-xl bg-background/80;
+    @apply bg-background/80 backdrop-blur-xl;
   }
 
   .glass-dark {
-    @apply backdrop-blur-xl bg-background/90;
+    @apply bg-background/90 backdrop-blur-xl;
   }
 
   .drag-area {

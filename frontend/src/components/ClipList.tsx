@@ -1,8 +1,8 @@
-import { ClipboardItem } from "../types";
-import { clsx } from "clsx";
-import { useRef, useMemo } from "react";
-import { memo } from "react";
-import { LAYOUT, TOTAL_COLUMN_WIDTH } from "../constants";
+import { ClipboardItem } from '../types';
+import { clsx } from 'clsx';
+import { useRef, useMemo } from 'react';
+import { memo } from 'react';
+import { LAYOUT, TOTAL_COLUMN_WIDTH } from '../constants';
 
 interface ClipListProps {
   clips: ClipboardItem[];
@@ -37,7 +37,7 @@ export function ClipList({
 
     // If scrolled within 300px of the end
     if (scrollLeft + clientWidth >= scrollWidth - 300) {
-      console.log("Scroll to end detected (native), loading more...");
+      console.log('Scroll to end detected (native), loading more...');
       onLoadMore();
     }
   };
@@ -52,9 +52,9 @@ export function ClipList({
 
   if (isLoading && clips.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full w-full">
+      <div className="flex h-full w-full items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
           <p className="text-sm text-muted-foreground">Loading clips...</p>
         </div>
       </div>
@@ -63,11 +63,9 @@ export function ClipList({
 
   if (clips.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full text-center p-8">
-        <h3 className="text-lg font-semibold mb-2 text-gray-400">
-          No clips yet
-        </h3>
-        <p className="text-sm text-gray-500 max-w-xs">
+      <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center">
+        <h3 className="mb-2 text-lg font-semibold text-gray-400">No clips yet</h3>
+        <p className="max-w-xs text-sm text-gray-500">
           Copy something to your clipboard and it will appear here.
         </p>
       </div>
@@ -77,12 +75,12 @@ export function ClipList({
   return (
     <div
       ref={containerRef}
-      className="flex-1 h-full w-full overflow-x-auto overflow-y-hidden no-scrollbar flex items-center px-4 gap-4"
+      className="no-scrollbar flex h-full w-full flex-1 items-center gap-4 overflow-x-auto overflow-y-hidden px-4"
       onScroll={handleScroll}
       onWheel={handleWheel}
       style={{
         // Smooth scrolling disabled per user request
-        scrollBehavior: "auto",
+        scrollBehavior: 'auto',
       }}
     >
       {clips.map((clip) => (
@@ -97,13 +95,13 @@ export function ClipList({
 
       {/* Loading indicator at the end */}
       {isLoading && clips.length > 0 && (
-        <div className="h-full flex items-center justify-center min-w-[100px]">
-          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        <div className="flex h-full min-w-[100px] items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
         </div>
       )}
 
       {/* Spacer end */}
-      <div className="min-w-[20px] h-full flex-shrink-0" />
+      <div className="h-full min-w-[20px] flex-shrink-0" />
     </div>
   );
 }
@@ -123,19 +121,19 @@ const ClipCard = memo(function ClipCard({
 
   // Memoize the content rendering
   const renderedContent = useMemo(() => {
-    if (clip.clip_type === "image") {
+    if (clip.clip_type === 'image') {
       return (
-        <div className="w-full h-full flex items-center justify-center">
+        <div className="flex h-full w-full items-center justify-center">
           <img
             src={`data:image/png;base64,${clip.content}`}
             alt="Clipboard Image"
-            className="max-w-full max-h-full object-contain"
+            className="max-h-full max-w-full object-contain"
           />
         </div>
       );
     } else {
       return (
-        <pre className="font-mono text-[11px] leading-tight whitespace-pre-wrap break-all text-foreground">
+        <pre className="whitespace-pre-wrap break-all font-mono text-[11px] leading-tight text-foreground">
           <span>{clip.content}</span>
         </pre>
       );
@@ -149,21 +147,21 @@ const ClipCard = memo(function ClipCard({
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
     const colors = [
-      "bg-red-400",
-      "bg-orange-400",
-      "bg-amber-400",
-      "bg-green-400",
-      "bg-emerald-400",
-      "bg-teal-400",
-      "bg-cyan-400",
-      "bg-sky-400",
-      "bg-blue-400",
-      "bg-indigo-400",
-      "bg-violet-400",
-      "bg-purple-400",
-      "bg-fuchsia-400",
-      "bg-pink-400",
-      "bg-rose-400",
+      'bg-red-400',
+      'bg-orange-400',
+      'bg-amber-400',
+      'bg-green-400',
+      'bg-emerald-400',
+      'bg-teal-400',
+      'bg-cyan-400',
+      'bg-sky-400',
+      'bg-blue-400',
+      'bg-indigo-400',
+      'bg-violet-400',
+      'bg-purple-400',
+      'bg-fuchsia-400',
+      'bg-pink-400',
+      'bg-rose-400',
     ];
     return colors[Math.abs(hash) % colors.length];
   };
@@ -174,10 +172,7 @@ const ClipCard = memo(function ClipCard({
     <div
       style={{
         width: TOTAL_COLUMN_WIDTH - LAYOUT.CARD_GAP,
-        height:
-          LAYOUT.WINDOW_HEIGHT -
-          LAYOUT.CONTROL_BAR_HEIGHT -
-          LAYOUT.CARD_VERTICAL_PADDING * 2,
+        height: LAYOUT.WINDOW_HEIGHT - LAYOUT.CONTROL_BAR_HEIGHT - LAYOUT.CARD_VERTICAL_PADDING * 2,
       }}
       className="flex-shrink-0"
     >
@@ -185,38 +180,33 @@ const ClipCard = memo(function ClipCard({
         onClick={onSelect}
         onDoubleClick={onPaste}
         className={clsx(
-          "w-full h-full flex flex-col rounded-xl overflow-hidden cursor-pointer transition-all shadow-lg bg-card border border-border relative",
+          'relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg transition-all',
           isSelected
-            ? "ring-4 ring-blue-500 transform scale-[1.02] z-10"
-            : "hover:ring-2 hover:ring-primary/30 hover:-translate-y-1",
+            ? 'z-10 scale-[1.02] transform ring-4 ring-blue-500'
+            : 'hover:-translate-y-1 hover:ring-2 hover:ring-primary/30'
         )}
       >
-        <div
-          className={clsx(
-            headerColor,
-            "px-4 py-2 flex items-center gap-2 flex-shrink-0",
-          )}
-        >
+        <div className={clsx(headerColor, 'flex flex-shrink-0 items-center gap-2 px-4 py-2')}>
           {clip.source_icon && (
             <img
               src={`data:image/png;base64,${clip.source_icon}`}
               alt=""
-              className="w-4 h-4 object-contain"
+              className="h-4 w-4 object-contain"
             />
           )}
-          <span className="font-bold text-white text-[10px] uppercase tracking-wider truncate flex-1 shadow-sm">
+          <span className="flex-1 truncate text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
             {title}
           </span>
         </div>
 
-        <div className="flex-1 bg-card p-3 overflow-hidden relative">
+        <div className="relative flex-1 overflow-hidden bg-card p-3">
           {renderedContent}
-          <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent pointer-events-none" />
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-card to-transparent" />
         </div>
 
-        <div className="bg-secondary px-3 py-1.5 border-t border-border flex-shrink-0">
-          <span className="text-[10px] text-muted-foreground font-medium">
-            {clip.clip_type === "image"
+        <div className="flex-shrink-0 border-t border-border bg-secondary px-3 py-1.5">
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {clip.clip_type === 'image'
               ? `Image (${Math.round((clip.content.length * 0.75) / 1024)}KB)`
               : `${clip.content.length} characters`}
           </span>

@@ -12,9 +12,7 @@ export function SettingsWindow() {
   useTheme(settings?.theme || 'dark');
 
   useEffect(() => {
-    invoke<Settings>('get_settings')
-      .then(setSettings)
-      .catch(console.error);
+    invoke<Settings>('get_settings').then(setSettings).catch(console.error);
   }, []);
 
   const handleClose = async () => {
@@ -22,7 +20,7 @@ export function SettingsWindow() {
     try {
       await win.close();
     } catch (e) {
-      console.error("Failed to close settings window:", e);
+      console.error('Failed to close settings window:', e);
     }
   };
 
@@ -38,16 +36,12 @@ export function SettingsWindow() {
   };
 
   if (!settings) {
-    return <div className="flex items-center justify-center h-screen text-white">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center text-white">Loading...</div>;
   }
 
   return (
     <div className="h-screen bg-background text-foreground">
-      <SettingsPanel
-        settings={settings}
-        onClose={handleClose}
-        onSave={handleSave}
-      />
+      <SettingsPanel settings={settings} onClose={handleClose} onSave={handleSave} />
     </div>
   );
 }

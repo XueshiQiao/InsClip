@@ -25,7 +25,7 @@ export function useTheme(theme: string) {
         root.classList.remove('light', 'dark');
         applyTheme('system');
       };
-      
+
       mediaQuery.addEventListener('change', handleChange);
       return () => mediaQuery.removeEventListener('change', handleChange);
     }

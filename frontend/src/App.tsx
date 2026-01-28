@@ -27,14 +27,16 @@ function App() {
   selectedFolderRef.current = selectedFolder;
 
   useEffect(() => {
-    invoke<Settings>('get_settings').then(s => setTheme(s.theme)).catch(console.error);
+    invoke<Settings>('get_settings')
+      .then((s) => setTheme(s.theme))
+      .catch(console.error);
 
     // Listen for setting changes from the settings window
     const unlisten = listen<Settings>('settings-changed', (event) => {
-        setTheme(event.payload.theme);
+      setTheme(event.payload.theme);
     });
     return () => {
-        unlisten.then(f => f());
+      unlisten.then((f) => f());
     };
   }, []);
 
@@ -65,41 +67,51 @@ function App() {
     });
   }, []);
 
-  const loadClips = useCallback(async (folderId: string | null, append: boolean = false) => {
-    try {
-      console.log('loadClips START | folderId:', folderId, 'append:', append, 'currentClips:', clips.length);
-      setIsLoading(true);
+  const loadClips = useCallback(
+    async (folderId: string | null, append: boolean = false) => {
+      try {
+        console.log(
+          'loadClips START | folderId:',
+          folderId,
+          'append:',
+          append,
+          'currentClips:',
+          clips.length
+        );
+        setIsLoading(true);
 
-      const currentOffset = append ? clips.length : 0;
-      console.log('Fetching with offset:', currentOffset);
+        const currentOffset = append ? clips.length : 0;
+        console.log('Fetching with offset:', currentOffset);
 
-      const data = await invoke<ClipboardItem[]>('get_clips', {
-        filterId: folderId,
-        limit: 20, // Reverted to 20 per user request
-        offset: currentOffset,
-        previewOnly: false, // Load full image data directly
-      });
-
-      console.log('Clips loaded:', data.length);
-
-      if (append) {
-        setClips(prev => {
-           console.log('Appending clips. Prev:', prev.length, 'New:', data.length);
-           return [...prev, ...data];
+        const data = await invoke<ClipboardItem[]>('get_clips', {
+          filterId: folderId,
+          limit: 20, // Reverted to 20 per user request
+          offset: currentOffset,
+          previewOnly: false, // Load full image data directly
         });
-      } else {
-        console.log('Setting new clips');
-        setClips(data);
-      }
 
-      // If we got fewer than limit, no more clips
-      setHasMore(data.length === 20);
-    } catch (error) {
-      console.error('Failed to load clips:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [clips.length]);
+        console.log('Clips loaded:', data.length);
+
+        if (append) {
+          setClips((prev) => {
+            console.log('Appending clips. Prev:', prev.length, 'New:', data.length);
+            return [...prev, ...data];
+          });
+        } else {
+          console.log('Setting new clips');
+          setClips(data);
+        }
+
+        // If we got fewer than limit, no more clips
+        setHasMore(data.length === 20);
+      } catch (error) {
+        console.error('Failed to load clips:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clips.length]
+  );
 
   const loadFolders = useCallback(async () => {
     try {
@@ -121,9 +133,9 @@ function App() {
     console.log('Folder changed to:', selectedFolder);
     loadFolders();
     if (searchQuery.trim()) {
-        handleSearch(searchQuery);
+      handleSearch(searchQuery);
     } else {
-        loadClips(selectedFolder);
+      loadClips(selectedFolder);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFolder]);
@@ -154,9 +166,9 @@ function App() {
     if (query.trim()) {
       try {
         const data = await invoke<ClipboardItem[]>('search_clips', {
-            query,
-            filterId: selectedFolder,
-            limit: 100
+          query,
+          filterId: selectedFolder,
+          limit: 100,
         });
         setClips(data);
       } catch (error) {
@@ -171,7 +183,7 @@ function App() {
     if (!clipId) return;
     try {
       await invoke('delete_clip', { id: clipId, hardDelete: false });
-      setClips(clips.filter(c => c.id !== clipId));
+      setClips(clips.filter((c) => c.id !== clipId));
       setSelectedClipId(null);
     } catch (error) {
       console.error('Failed to delete clip:', error);
@@ -180,7 +192,7 @@ function App() {
 
   const handlePin = async (clipId: string | null) => {
     if (!clipId) return;
-    const clip = clips.find(c => c.id === clipId);
+    const clip = clips.find((c) => c.id === clipId);
     if (!clip) return;
 
     try {
@@ -189,11 +201,9 @@ function App() {
       } else {
         await invoke('pin_clip', { id: clipId });
       }
-      setClips(prev => {
-        const updated = prev.map(c =>
-          c.id === clipId ? { ...c, is_pinned: !c.is_pinned } : c
-        );
-        return [...updated.filter(c => c.is_pinned), ...updated.filter(c => !c.is_pinned)];
+      setClips((prev) => {
+        const updated = prev.map((c) => (c.id === clipId ? { ...c, is_pinned: !c.is_pinned } : c));
+        return [...updated.filter((c) => c.is_pinned), ...updated.filter((c) => !c.is_pinned)];
       });
     } catch (error) {
       console.error('Failed to pin/unpin clip:', error);
@@ -210,7 +220,7 @@ function App() {
   };
 
   const handleCopy = async (clipId: string) => {
-    const clip = clips.find(c => c.id === clipId);
+    const clip = clips.find((c) => c.id === clipId);
     if (clip) {
       try {
         await navigator.clipboard.writeText(clip.content);
@@ -236,7 +246,7 @@ function App() {
   }, [hasMore, isLoading, selectedFolder, loadClips]);
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden font-sans">
+    <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground">
       <ControlBar
         folders={folders}
         selectedFolder={selectedFolder}
@@ -246,19 +256,19 @@ function App() {
         onSearchChange={handleSearch}
         onSearchClick={() => {
           if (showSearch) {
-            handleSearch(""); // Clear search when closing
+            handleSearch(''); // Clear search when closing
           }
           setShowSearch(!showSearch);
         }}
         onAddClick={() => {
-           // For now, prompt for new folder creation as a placeholder for "Add"
-           const name = prompt("Enter new folder name:");
-           if (name) handleCreateFolder(name);
+          // For now, prompt for new folder creation as a placeholder for "Add"
+          const name = prompt('Enter new folder name:');
+          if (name) handleCreateFolder(name);
         }}
         onMoreClick={openSettings}
       />
 
-      <main className="flex-1 relative no-scrollbar">
+      <main className="no-scrollbar relative flex-1">
         <ClipList
           clips={clips}
           isLoading={isLoading}
