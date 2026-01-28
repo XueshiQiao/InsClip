@@ -23,18 +23,33 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+
       - name: Install frontend dependencies
         run: pnpm install
         working-directory: frontend
+
+      - name: Get version info
+        id: version
+        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
 
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
@@ -42,7 +57,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'WinPaste v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          releaseName: 'WinPaste v${{ github.ref_name }}'
+          releaseBody: |
+            ## What's Changed
+
+            See the [CHANGELOG.md](./CHANGELOG.md) for details.
+
+            ## Installation
+
+            Download the `.msi` or `.exe` installer from the assets below.
           releaseDraft: true
           prerelease: false
+          includeDebug: false
+          includeRelease: true
+          includeUpdaterJson: true
