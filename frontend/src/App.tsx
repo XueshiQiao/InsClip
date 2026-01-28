@@ -26,6 +26,10 @@ function App() {
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [dragTargetFolderId, setDragTargetFolderId] = useState<string | null>(null);
 
+  // Add Folder Modal State
+  const [showAddFolderModal, setShowAddFolderModal] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+
   // Using refs for event handlers to access latest state without re-attaching listeners
   const dragStateRef = useRef({
     isDragging: false,
@@ -424,9 +428,8 @@ function App() {
           setShowSearch(!showSearch);
         }}
         onAddClick={() => {
-          // For now, prompt for new folder creation as a placeholder for "Add"
-          const name = prompt('Enter new folder name:');
-          if (name) handleCreateFolder(name);
+          setShowAddFolderModal(true);
+          // Focus is handled by autoFocus on input
         }}
         onMoreClick={openSettings}
         onMoveClip={handleMoveClip} // Legacy, but kept for interface
@@ -453,6 +456,58 @@ function App() {
           // Simulated Drag Props
           onDragStart={startDrag}
         />
+
+        {/* Add Folder Modal Overlay */}
+        {showAddFolderModal && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-80 rounded-xl border border-border bg-card p-6 shadow-2xl">
+              <h3 className="mb-4 text-lg font-semibold text-foreground">Create New Folder</h3>
+              <input
+                autoFocus
+                type="text"
+                placeholder="Folder Name"
+                className="mb-4 w-full rounded-md border border-input bg-input px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (newFolderName.trim()) {
+                      handleCreateFolder(newFolderName.trim());
+                      setNewFolderName('');
+                      setShowAddFolderModal(false);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setShowAddFolderModal(false);
+                    setNewFolderName('');
+                  }
+                }}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowAddFolderModal(false);
+                    setNewFolderName('');
+                  }}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (newFolderName.trim()) {
+                      handleCreateFolder(newFolderName.trim());
+                      setNewFolderName('');
+                      setShowAddFolderModal(false);
+                    }
+                  }}
+                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
