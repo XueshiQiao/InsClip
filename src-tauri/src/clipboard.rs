@@ -55,6 +55,7 @@ pub fn init(app: &AppHandle, db: Arc<Database>) {
         let app = app_clone.clone();
         let db = db_clone.clone();
 
+        log::info!("CLIPBOARD: Clipboard change detected");
         tauri::async_runtime::spawn(async move {
             process_clipboard_change(app, db).await;
         });
@@ -106,6 +107,8 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
                  clip_type = "text";
                  clip_preview = text.chars().take(200).collect::<String>();
                  found_content = true;
+
+                 log::info!("CLIPBOARD: Found text: {}", clip_preview);
              }
         }
     }

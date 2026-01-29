@@ -43,6 +43,15 @@ pub fn run_app() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::default()
+            .format(|out, message, record| {
+                out.finish(format_args!(
+                    "[{}][{}][{}] {}",
+                    chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    record.target(),
+                    record.level(),
+                    message
+                ))
+            })
             .level(log::LevelFilter::Info)
             .targets([
                 tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
