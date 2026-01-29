@@ -300,12 +300,31 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow) {
         if let Some(monitor) = window.current_monitor().ok().flatten() {
             let scale_factor = monitor.scale_factor();
             let work_area = monitor.work_area();
-            let monitor_pos = monitor.position();
 
             let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
+            let window_margin_px = (constants::WINDOW_MARGIN * scale_factor) as i32;
 
-            let start_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32);
-            let target_y = work_area.position.y + (work_area.size.height as i32); // Off screen
+            let start_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
+            let target_y = work_area.position.y + (work_area.size.height as i32); // Off screen (starts at bottom of work area)
+
+            // Fix Z-Order: Ensure window is topmost, so it slides over the taskbar
+            #[cfg(target_os = "windows")]
+            {
+                use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE};
+                use windows::Win32::Foundation::HWND;
+
+                // window.hwnd() returns Result<HWND>. On Windows, Tauri's HWND is a struct wrapping isize/pointer.
+                // We cast it to ensure compatibility with windows crate HWND.
+                if let Ok(handle) = window.hwnd() {
+                     // Using .0 to get the inner isize/pointer value
+                     let hwnd = HWND(handle.0 as _);
+                     let hwnd_topmost = HWND(-1 as _); // HWND_TOPMOST
+                     unsafe {
+                        // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos
+                        let _ = SetWindowPos(hwnd, Some(hwnd_topmost), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                     }
+                }
+            }
 
             let steps = 15;
             let duration = std::time::Duration::from_millis(10);
@@ -314,7 +333,7 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow) {
             for i in 1..=steps {
                 let current_y = start_y as f64 + dy * i as f64;
                 let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                    x: monitor_pos.x,
+                    x: work_area.position.x + window_margin_px,
                     y: current_y as i32,
                 }));
                 std::thread::sleep(duration);
