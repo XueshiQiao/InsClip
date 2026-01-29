@@ -246,18 +246,19 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
             let monitor_pos = monitor.position();
             let work_area = monitor.work_area();
             let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
+            let window_margin_px = (constants::WINDOW_MARGIN * scale_factor) as i32;
 
             let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                width: screen_size.width,
+                width: work_area.size.width - (window_margin_px as u32 * 2),
                 height: window_height_px,
             }));
 
-            let target_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32);
+            let target_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
             let start_y = work_area.position.y + (work_area.size.height as i32); // Just off screen
 
             // Initial setup
             let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                x: monitor_pos.x,
+                x: work_area.position.x + window_margin_px,
                 y: start_y,
             }));
 
@@ -272,7 +273,7 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
             for i in 1..=steps {
                 let current_y = start_y as f64 + dy * i as f64;
                 let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                    x: monitor_pos.x,
+                    x: work_area.position.x + window_margin_px,
                     y: current_y as i32,
                 }));
                 std::thread::sleep(duration);
@@ -280,7 +281,7 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
 
             // Ensure final position is exact
             let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                x: monitor_pos.x,
+                x: work_area.position.x + window_margin_px,
                 y: target_y,
             }));
         }

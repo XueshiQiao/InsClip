@@ -436,7 +436,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground">
+    <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground rounded-[12px] border border-border/10 shadow-xl">
       {draggingClipId && (
         <DragPreview clip={clips.find((c) => c.id === draggingClipId)!} position={dragPosition} />
       )}
