@@ -52,7 +52,7 @@ pub fn run_app() {
                     message
                 ))
             })
-            .level(log::LevelFilter::Info)
+            .level(log::LevelFilter::Debug)
             .targets([
                 tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
                 tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),

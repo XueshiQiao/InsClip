@@ -28,6 +28,10 @@ use once_cell::sync::Lazy;
 // GLOBAL STATE: Store the hash of the clip we just pasted ourselves.
 // If the next clipboard change matches this hash, we ignore it (don't update timestamp).
 static IGNORE_HASH: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+static LAST_STABLE_HASH: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+use std::sync::atomic::{AtomicU64, Ordering};
+static DEBOUNCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn set_ignore_hash(hash: String) {
     if let Ok(mut lock) = IGNORE_HASH.lock() {
@@ -55,8 +59,22 @@ pub fn init(app: &AppHandle, db: Arc<Database>) {
         let app = app_clone.clone();
         let db = db_clone.clone();
 
-        log::info!("CLIPBOARD: Clipboard change detected");
+        // DEBOUNCE LOGIC:
+        // Increment counter to signal a new event has arrived.
+        let current_count = DEBOUNCE_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
+
         tauri::async_runtime::spawn(async move {
+            // Wait for stability (debounce window)
+            // 150ms should be enough to cover the "Copy -> Restore" cycle
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+            // Check if our execution is still the latest one
+            if DEBOUNCE_COUNTER.load(Ordering::SeqCst) != current_count {
+                // A newer event arrived while we were sleeping, so we abort this one.
+                log::debug!("CLIPBOARD: Debounce: Aborting older event, current_count:{}", current_count);
+                return;
+            }
+
             process_clipboard_change(app, db).await;
         });
     });
@@ -107,14 +125,25 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
                  clip_type = "text";
                  clip_preview = text.chars().take(200).collect::<String>();
                  found_content = true;
-
-                 log::info!("CLIPBOARD: Found text: {}", clip_preview);
+                log::debug!("CLIPBOARD: Found text: {}", clip_preview);
              }
         }
     }
 
     if !found_content {
         return;
+    }
+
+    // Stable Hash Check: Avoid bumping timestamp if the content is exactly the same as what we last processed.
+    if let Ok(mut lock) = LAST_STABLE_HASH.lock() {
+        if let Some(ref last_hash) = *lock {
+            if last_hash == &clip_hash {
+                // Content matches last known stable state, ignore update (no bump to top)
+                return;
+            }
+        }
+        // Update stable hash
+        *lock = Some(clip_hash.clone());
     }
 
     // Check if we should ignore this update (it's our own paste via double clickiing the card)
@@ -131,7 +160,6 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>) {
     // app_name is likely the friendly name, exe_name is the executable filename
     let (source_app, source_icon, exe_name, full_path) = get_clipboard_owner_app_info();
     log::info!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}", source_app, exe_name, full_path);
-
 
     // Check if the app is in the ignore list
     // We check against both the full path and the executable name
