@@ -2,7 +2,7 @@
   "name": "pastepaw",
   "version": "1.0.6",
   "description": "A beautiful clipboard history manager for Windows",
-  "private": true,
+  "license": "GPL-3.0",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

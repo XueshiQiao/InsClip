@@ -141,4 +141,4 @@ To add more or less space at the top/bottom of the cards (e.g., to prevent clipp
 
 ## License
 
-MIT
+GPL-3.0

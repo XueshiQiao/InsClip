@@ -2,8 +2,9 @@
 name = "PastePaw"
 version = "1.0.6"
 description = "A beautiful clipboard history manager for Windows"
-authors = ["you"]
-edition = "2021"
+authors = ["XueshiQiao"]
+license = "GPL-3.0"
+edition = "2026"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
