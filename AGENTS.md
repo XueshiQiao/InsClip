@@ -1,11 +1,11 @@
-# InsClip Development Guide
+# PastePaw Development Guide
 
 A beautiful clipboard history manager for Windows, built with Rust + Tauri + React + TypeScript.
 
 ## Project Structure
 
 ```
-InsClip/
+PastePaw/
 ├── src-tauri/           # Rust backend
 │   ├── src/
 │   │   ├── main.rs      # App entry point

@@ -447,10 +447,10 @@ export function SettingsPanel({ settings: initialSettings, onClose, onSave }: Se
 
         <div className="border-t border-border bg-background px-4 py-3 text-center">
           <button
-            onClick={() => openUrl('https://github.com/XueshiQiao/InsClip').catch(console.error)}
+            onClick={() => openUrl('https://github.com/XueshiQiao/PastePaw').catch(console.error)}
             className="text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            InsClip {appVersion || '...'}
+            PastePaw {appVersion || '...'}
           </button>
           <span className="text-xs text-muted-foreground"> © 2025</span>
         </div>

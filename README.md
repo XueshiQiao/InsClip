@@ -1,4 +1,4 @@
-# InsClip - Clipboard History Manager
+# PastePaw - Clipboard History Manager
 
 A beautiful clipboard history manager for Windows, built with Rust + Tauri + React + TypeScript.
 
@@ -15,11 +15,11 @@ A beautiful clipboard history manager for Windows, built with Rust + Tauri + Rea
 
 ## Application Exceptions (Ignored Apps)
 
-InsClip allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
+PastePaw allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
 
 **Logic & Behavior:**
 - **How to manage:** Go to Settings -> Ignored Applications. You can browse for an executable (`.exe`) or strictly type its name.
-- **Privacy Protection:** When content is copied, InsClip checks the source application against your ignore list.
+- **Privacy Protection:** When content is copied, PastePaw checks the source application against your ignore list.
 - **Robust Matching:** The system checks against **both**:
     1.  **Executable Name** (e.g., `notepad.exe`) - Matches any instance of this app regardless of location.
     2.  **Full File Path** (e.g., `C:\Windows\System32\notepad.exe`) - Matches only the specific installed instance.
@@ -64,7 +64,7 @@ pnpm tauri build
 ## Project Structure
 
 ```
-InsClip/
+PastePaw/
 ├── src-tauri/           # Rust backend
 │   ├── src/
 │   │   ├── main.rs      # App entry point
