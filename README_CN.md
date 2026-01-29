@@ -1,5 +1,7 @@
 # PastePaw - 剪贴板历史管理工具
 
+[English](./README.md)
+
 一款专为 Windows 打造的精美剪贴板历史管理工具，基于 Rust + Tauri + React + TypeScript 构建。
 
 ## 功能特性

@@ -1,5 +1,7 @@
 # PastePaw - Clipboard History Manager
 
+[中文文档](./README_CN.md)
+
 A beautiful clipboard history manager for Windows, built with Rust + Tauri + React + TypeScript.
 
 ## Features
