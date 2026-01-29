@@ -436,7 +436,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-background font-sans text-foreground rounded-[12px] border border-border/10 shadow-xl">
+    <div className="flex h-screen flex-col overflow-hidden rounded-[12px] border border-border/10 bg-background font-sans text-foreground shadow-xl">
       {draggingClipId && (
         <DragPreview clip={clips.find((c) => c.id === draggingClipId)!} position={dragPosition} />
       )}
@@ -505,6 +505,7 @@ function App() {
         onFolderContextMenu={(e, folderId) => {
           if (folderId) handleContextMenu(e, 'folder', folderId);
         }}
+        theme={theme === 'light' ? 'light' : 'dark'}
       />
 
       <main className="no-scrollbar relative flex-1">
