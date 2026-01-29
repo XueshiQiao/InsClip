@@ -117,7 +117,7 @@ export const ClipCard = memo(function ClipCard({
 
         <div className="relative flex-1 overflow-hidden bg-card p-3">
           {renderedContent}
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-full bg-gradient-to-t from-card via-card/60 to-transparent" />
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-14 bg-gradient-to-t from-card via-card/40 to-transparent" />
         </div>
 
         <div className="relative flex-shrink-0 px-3 py-1.5">
