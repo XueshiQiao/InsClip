@@ -2,7 +2,7 @@
 # ./generate_icons.ps1 -InputImage ./src-tauri/icons/icon.png
 
 param (
-    [string]$InputImage = "./src-tauri/icons/icon.png"
+    [string]$InputImage = "./src-tauri/icons/icon_light_blue_gradient"
 )
 
 # Check if Tauri CLI is available
