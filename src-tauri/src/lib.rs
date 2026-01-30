@@ -153,9 +153,13 @@ pub fn run_app() {
                 let win_clone = win.clone();
                 let _ = app_handle.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
                     if event.state() == ShortcutState::Pressed {
-                        position_window_at_bottom(&win_clone);
-                        let _ = win_clone.show();
-                        let _ = win_clone.set_focus();
+                        if win_clone.is_visible().unwrap_or(false) && win_clone.is_focused().unwrap_or(false) {
+                            crate::animate_window_hide(&win_clone);
+                        } else {
+                            position_window_at_bottom(&win_clone);
+                            let _ = win_clone.show();
+                            let _ = win_clone.set_focus();
+                        }
                     }
                 });
             } else {
