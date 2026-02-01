@@ -35,7 +35,7 @@ pub fn run_app() {
     fs::create_dir_all(&data_dir).ok();
     let db_path = data_dir.join("paste_paw.db");
     let db_path_str = db_path.to_str().unwrap_or("paste_paw.db").to_string();
-    eprintln!("Database path: {}", db_path_str);
+    log::info!("Database path: {}", db_path_str);
 
     let rt = get_runtime().expect("Failed to get global tokio runtime");
 
