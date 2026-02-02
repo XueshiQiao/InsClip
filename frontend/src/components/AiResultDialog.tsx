@@ -1,6 +1,5 @@
 import { X, Copy, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 
 interface AiResultDialogProps {
