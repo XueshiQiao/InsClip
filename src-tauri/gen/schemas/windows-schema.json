@@ -345,6 +345,18 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the track_event command without any pre-configured scope.",
+          "type": "string",
+          "const": "aptabase:allow-track-event",
+          "markdownDescription": "Enables the track_event command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the track_event command without any pre-configured scope.",
+          "type": "string",
+          "const": "aptabase:deny-track-event",
+          "markdownDescription": "Denies the track_event command without any pre-configured scope."
+        },
+        {
           "description": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`",
           "type": "string",
           "const": "autostart:default",
