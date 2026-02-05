@@ -12,8 +12,6 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
-#[cfg(target_os = "windows")]
-use window_vibrancy::apply_mica;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
@@ -96,6 +94,26 @@ pub fn run_app() {
         .manage(db_arc.clone())
         .on_window_event(|window, event| {
             match event {
+                tauri::WindowEvent::ThemeChanged(theme) => {
+                    log::info!("THEME:System theme changed to: {:?}, win.theme(): {:?}", theme, window.theme());
+                    let label = window.label().to_string();
+                    let app_handle = window.app_handle().clone();
+                    let db = window.state::<Arc<Database>>().inner().clone();
+                    let theme_ = theme.clone();
+
+                    tauri::async_runtime::spawn(async move {
+                        let current_theme = db.get_setting("theme").await.ok().flatten().unwrap_or_else(|| "system".to_string());
+                        let mica_effect = db.get_setting("mica_effect").await.ok().flatten().unwrap_or_else(|| "clear".to_string());
+
+                        log::info!("THEME:Re-applying window effect due to theme change. Current theme setting: {:?}, system theme: {:?}, mica_effect setting: {:?}", current_theme, theme_, mica_effect);
+                        // If app is set to follow system, we re-apply based on the NEW system theme
+                        if current_theme == "system" {
+                            if let Some(webview_win) = app_handle.get_webview_window(&label) {
+                                crate::apply_window_effect(&webview_win, &mica_effect, &theme_);
+                            }
+                        }
+                    });
+                }
                 tauri::WindowEvent::Focused(focused) => {
                     if !focused {
                         let label = window.label();
@@ -210,11 +228,27 @@ pub fn run_app() {
             #[cfg(target_os = "windows")]
             {
                 let db_for_mica = db_for_clipboard.clone();
-                let mica_effect = get_runtime().unwrap().block_on(async {
-                    db_for_mica.get_setting("mica_effect").await.ok().flatten()
-                }).unwrap_or_else(|| "clear".to_string());
+                let (mica_effect, theme) = get_runtime().unwrap().block_on(async {
+                    let m = db_for_mica.get_setting("mica_effect").await.ok().flatten().unwrap_or_else(|| "clear".to_string());
+                    let t = db_for_mica.get_setting("theme").await.ok().flatten().unwrap_or_else(|| "system".to_string());
+                    (m, t)
+                });
 
-                crate::apply_window_effect(&win, &mica_effect);
+                // get current system theme
+                let current_theme = if theme == "light" {
+                    tauri::Theme::Light
+                } else if theme == "dark" {
+                    tauri::Theme::Dark
+                } else {
+                    win.theme().unwrap_or_else(|err| {
+                        log::error!("THEME:Failed to get system theme: {:?}, defaulting to Light", err);
+                        tauri::Theme::Light
+                    })
+                };
+
+                log::info!("THEME:Applying window effect: {} with theme: {:?} (setting:{:?}", mica_effect, current_theme, theme);
+
+                crate::apply_window_effect(&win, &mica_effect, &current_theme);
             }
 
             #[cfg(target_os = "macos")]
@@ -504,23 +538,35 @@ pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Mon
     }
 }
 
-pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str) {
+pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &tauri::Theme) {
     #[cfg(target_os = "windows")]
     {
+        use window_vibrancy::{clear_mica, apply_mica, apply_tabbed};
+
+        // 1. mica && mica_tabbed(mica_alt) ref:https://learn.microsoft.com/en-us/windows/apps/design/style/mica
+        // "Mica Alt is a variant of Mica, with stronger tinting of the user's desktop background color"
+        // 2. How to use: DWMWA_USE_IMMERSIVE_DARK_MODE (underlying of apply_mica)?
+        // After passing hWnd (the handle to the window you want to change) as your first parameter,
+        // you need to pass in DWMWA_USE_IMMERSIVE_DARK_MODE as the dwAttribute parameter.
+        // This is a constant in the DWM API that lets the Windows frame be drawn in Dark mode colors when the Dark mode system setting is enabled.
+        // If you switch to Light mode, you will have to change DWMWA_USE_IMMERSIVE_DARK_MODE from 20 to 0
+        // for the title bar to be drawn in light mode colors.
+        // see https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes
         match effect {
             "clear" => {
-                use window_vibrancy::clear_mica;
                 let _ = clear_mica(window);
-                log::info!("Mica effect cleared");
+                log::info!("THEME:Mica effect cleared");
             },
-            "dark" => {
-                let _ = apply_mica(window, Some(true));
-                log::info!("Applied Mica (Dark)");
+            "mica" | "dark" => {  // dark for legacy reasons, remove in future
+                let _ = clear_mica(window);
+                let _ = apply_mica(window, Some(matches!(theme, tauri::Theme::Dark)));
+                log::info!("THEME:Applied Mica effect (Theme: {})", theme);
             },
-            "auto" | _ => {
-                // "auto" or default
-                let _ = apply_mica(window, None);
-                log::info!("Applied Mica (Auto)");
+            "mica_alt" | "auto" | _ => {  // auto for legacy reasons, remove in future
+                let _ = clear_mica(window);
+                // Use Tabbed effect for 'mica_alt' as it looks more modern on Win11
+                let _ = apply_tabbed(window, Some(matches!(theme, tauri::Theme::Dark)));
+                log::info!("THEME:Applied Tabbed effect (Theme: {})", theme);
             }
         }
     }

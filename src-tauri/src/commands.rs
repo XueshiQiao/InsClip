@@ -1,4 +1,4 @@
-use tauri::{Emitter, Manager, AppHandle};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_clipboard::Clipboard;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use std::str::FromStr;
@@ -7,6 +7,7 @@ use std::sync::Arc;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::models::{Clip, Folder, ClipboardItem, FolderItem};
 use crate::ai::{self, AiConfig, AiAction};
+use dark_light::Mode;
 
 #[tauri::command]
 pub async fn ai_process_clip(clip_id: String, action: String, db: tauri::State<'_, Arc<Database>>) -> Result<String, String> {
@@ -636,10 +637,40 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: taur
         sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('mica_effect', ?)"#)
             .bind(mica_effect)
             .execute(pool).await.ok();
+    }
 
-        if let Some(win) = app.get_webview_window("main") {
-            crate::apply_window_effect(&win, mica_effect);
-        }
+    // Always re-apply window effect when theme or mica_effect might have changed
+    let theme_str = settings.get("theme").and_then(|v| v.as_str()).unwrap_or("system");
+    let mica_effect = settings.get("mica_effect").and_then(|v| v.as_str()).unwrap_or("clear");
+    if let Some(win) = app.get_webview_window("main") {
+        // get current system theme
+        let current_theme = if theme_str == "light" {
+            tauri::Theme::Light
+        } else if theme_str == "dark" {
+            tauri::Theme::Dark
+        } else {
+            let mode = dark_light::detect().map_err(|e| {
+                log::error!("THEME: Failed to detect system theme: {:?} via dark_light::detect()", e);
+                e.to_string()
+            })?;
+
+            let theme2 = match mode {
+                Mode::Dark => tauri::Theme::Dark,
+                Mode::Light => tauri::Theme::Light,
+                _ => tauri::Theme::Light,
+            };
+
+            log::info!("THEME: win.theme(): {:?}, dark_light::detectd(): {:?}", win.theme(), theme2);
+
+            // sometimes win.theme() is not right. don't why for now..
+            // win.theme().unwrap_or_else(|err| {
+            //     log::error!("THEME: Failed to get system theme: {:?}, defaulting to Light", err);
+            //     tauri::Theme::Light
+            // })
+            theme2
+        };
+        log::info!("THEME:Applying window effect: {} with theme: {:?} (setting:{:?}", mica_effect, current_theme, theme_str);
+        crate::apply_window_effect(&win, mica_effect, &current_theme);
     }
 
     if let Some(ai_provider) = settings.get("ai_provider").and_then(|v| v.as_str()) {

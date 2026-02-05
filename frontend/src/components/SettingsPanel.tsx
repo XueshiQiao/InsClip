@@ -463,8 +463,8 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                           onChange={(e) => updateSetting('mica_effect', e.target.value)}
                           className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         >
-                          <option value="auto">Mica Auto</option>
-                          <option value="dark">Mica Dark</option>
+                          <option value="mica_alt">Mica Alt</option>
+                          <option value="mica">Mica</option>
                           <option value="clear">Clear</option>
                         </select>
                       </div>
