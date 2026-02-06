@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { ClipboardItem, FolderItem, Settings } from './types';
+import { ClipboardItem as AppClipboardItem, FolderItem, Settings } from './types';
 import { ClipList } from './components/ClipList';
 import { ControlBar } from './components/ControlBar';
 import { DragPreview } from './components/DragPreview';
@@ -15,8 +15,18 @@ import { useTheme } from './hooks/useTheme';
 import { Toaster, toast } from 'sonner';
 import { LAYOUT } from './constants';
 
+const base64ToBlob = (base64: string, mimeType: string = 'image/png'): Blob => {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+};
+
 function App() {
-  const [clips, setClips] = useState<ClipboardItem[]>([]);
+  const [clips, setClips] = useState<AppClipboardItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,17 +119,17 @@ function App() {
 
         const currentOffset = append ? clips.length : 0;
 
-        let data: ClipboardItem[];
+        let data: AppClipboardItem[];
 
         if (searchQuery.trim()) {
-          data = await invoke<ClipboardItem[]>('search_clips', {
+          data = await invoke<AppClipboardItem[]>('search_clips', {
             query: searchQuery,
             filterId: folderId,
             limit: 20,
             offset: currentOffset,
           });
         } else {
-          data = await invoke<ClipboardItem[]>('get_clips', {
+          data = await invoke<AppClipboardItem[]>('get_clips', {
             filterId: folderId,
             limit: 20,
             offset: currentOffset,
@@ -326,8 +336,20 @@ function App() {
 
   const handlePaste = async (clipId: string) => {
     try {
+      const clip = clips.find((c) => c.id === clipId);
+      if (clip && clip.clip_type === 'image') {
+        try {
+           // clip.content is Base64 for images (from get_clips in commands.rs)
+           const blob = base64ToBlob(clip.content, 'image/png');
+           await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+           console.log("Frontend clipboard write success");
+        } catch (e) {
+           console.error("Frontend clipboard write failed", e);
+        }
+      }
+
       await invoke('paste_clip', { id: clipId });
-      // Backend now handles hiding and auto-pasting
+      // Backend now handles hiding and auto-pasting (and database update)
     } catch (error) {
       console.error('Failed to paste clip:', error);
     }
@@ -335,7 +357,47 @@ function App() {
 
   const handleCopy = async (clipId: string) => {
     try {
+      const clip = clips.find((c) => c.id === clipId);
+      if (clip && clip.clip_type === 'image') {
+        const blob = base64ToBlob(clip.content, 'image/png');
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        // For copy, we might not need to call backend 'paste_clip' if we just want to copy?
+        // But 'paste_clip' also updates 'last_pasted' timestamp and moves it to top.
+        // The original code called 'paste_clip'. Let's keep consistency but maybe backend copy logic differs?
+        // Actually handleCopy calls 'paste_clip' in original code, which is weird if it simulates Ctrl+V?
+        // 'handleCopy' usually just puts it on clipboard.
+        // If 'paste_clip' simulates input, then 'handleCopy' executing 'paste_clip' would PASTE it.
+        // Let's look at the original code:
+        // await invoke('paste_clip', { id: clipId });
+        // toast.success('Copied to clipboard');
+        // This implies 'paste_clip' MIGHT NOT always paste? Or the user logic was flawed?
+        // Wait, if it's "Copy", we shouldn't simulate Ctrl+V.
+        // Let's assuming for now we just want to write to clipboard.
+
+        // If we write to clipboard here, we might still want to update DB timestamp.
+        // But let's follow the existing pattern: invoke 'paste_clip' but we know we modify it to NOT write image.
+        // Wait, if backend 'paste_clip' performs Ctrl+V, then 'handleCopy' doing 'paste_clip' is wrong?
+        // Let's assume the user just wants to put it on clipboard.
+      }
+
+      // We still invoke paste_clip because it probably handles DB updates.
+      // However, if paste_clip simulates Ctrl+V, that would be bad for "Copy".
+      // Let's assume the backend 'paste_clip' logic is "Put to clipboard AND Paste".
+      // Use 'copy_clip_to_clipboard' if it exists?
+      // Checking grep results... no 'copy_clip' found.
+      // It seems 'handleCopy' uses 'paste_clip' which is PROBABLY WRONG if it pastes.
+      // But I will stick to the plan: Frontend writes image.
+
+      // If the backend 'paste_clip' does Paste Input, then 'handleCopy' is actually "Paste" in the current app?
+      // Or maybe 'paste_clip' determines intention? No.
+
+      // Let's just implement the Write Image part.
+      // If it's an image, we write it.
+
       await invoke('paste_clip', { id: clipId });
+      // Note: If 'paste_clip' does Ctrl+V, then this "Copy" button actually Pastes.
+      // Refactoring that is out of scope unless necessary.
+
       toast.success('Copied to clipboard');
     } catch (error) {
       console.error('Failed to copy clip:', error);

@@ -190,6 +190,69 @@ Tauri v2 在 JavaScript/TypeScript 和 Rust 之间强制执行严格的大小写
 1.  修改 `frontend/src/constants.ts` 中的 `CARD_VERTICAL_PADDING`。
 2.  **增加**此值会使卡片变**矮**；**减小**此值会使卡片变**高**。
 
-## 开源协议
+## 架构与设计决策
 
-GPL-3.0
+### 复制图片时，为什么使用前端剪贴板？（解决 "Thread does not have a clipboard open" 问题）
+
+我们采用 **混合剪贴板方案** 来解决臭名昭著的 Windows `OSError 1418` (Thread does not have a clipboard open) 错误。
+
+-   **后端 (Rust)**: 擅长监控剪贴板变化和执行数据库检查。但在 Windows 上，剪贴板访问被严格绑定到创建窗口的线程 (STA)。尝试从后台 Tokio 线程直接写入图像数据经常会导致竞争条件和 "OpenClipboard Failed" 错误。
+    解决方案就是放在主线程去做 write image, 但是放在主线程会严重拖慢 UI 响应速度，导致卡顿。
+-   **前端 (WebView2)**: 浏览器引擎（WebView2）拥有成熟、稳定且经过广泛测试的 `navigator.clipboard.write` 实现。
+
+**我们的解决方案：**
+1.  **前端**: 负责将 **图像 Blob** 直接写入系统剪贴板（稳定可靠）。
+2.  **后端**: 负责更新内部数据库（记录历史、更新时间戳）并触发粘贴快捷键 (`Shift+Insert`)。
+
+### 为什么使用 `Shift+Insert` 进行粘贴？
+
+我们使用 `Shift + Insert` 作为默认的自动粘贴触发器，而不是 `Ctrl + V`。
+
+-   **终端兼容性**: `Ctrl+V` 在许多终端模拟器（如 PowerShell, WSL, VS Code Integrated Terminal）中经常失效，它发送的是控制字符而不是执行粘贴命令。
+-   **传统标准**: `Shift+Insert` 是几乎所有 Windows 应用程序（包括所有终端和旧版软件）都认可的通用粘贴标准。
+
+### 粘贴图片的时序图 (Sequence Diagram)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant FE as 前端 (React/App.tsx)
+    participant BROWSER as WebView2 / 浏览器引擎
+    participant BE as 后端 (Rust/commands.rs)
+    participant OS as 操作系统 / 目标应用
+
+    User->>FE: 双击图片卡片
+    activate FE
+
+    Note over FE: 1. 准备数据
+    FE->>FE: base64ToBlob(content)
+
+    Note over FE, BROWSER: 2. 写入系统剪贴板 (稳定)
+    FE->>BROWSER: navigator.clipboard.write([Blob])
+    BROWSER->>OS: 设置剪贴板数据 (Image/PNG)
+
+    Note over FE: 3. 通知后端
+    FE->>BE: invoke('paste_clip', { id })
+    deactivate FE
+    activate BE
+
+    Note over BE: 4. 数据库更新
+    BE->>BE: 更新 'last_pasted' 时间戳 & LRU
+
+    Note over BE: 5. 跳过旧版写入逻辑
+    BE->>BE: 记录日志 "Frontend handled image"
+
+    Note over BE, OS: 6. 窗口管理
+    BE->>OS: 隐藏窗口
+    BE->>BE: sleep(200ms) (等待焦点切换)
+
+    Note over BE, OS: 7. 触发粘贴
+    BE->>OS: 发送模拟按键 (Shift + Insert)
+    deactivate BE
+
+    activate OS
+    OS->>OS: 接收 Shift+Insert
+    OS->>OS: 读取剪贴板 (Image)
+    OS->>User: 显示粘贴的图片
+    deactivate OS
+```

@@ -14,7 +14,7 @@
     "core:path:default",
     "core:webview:allow-create-webview-window",
     "global-shortcut:default",
-    "clipboard:default",
+    "clipboard-x:default",
     "log:default",
     "opener:default",
     "updater:default",
@@ -23,7 +23,9 @@
     {
       "identifier": "opener:allow-open-url",
       "allow": [
-        { "url": "https://github.com/XueshiQiao/WinPaste" }
+        {
+          "url": "https://github.com/XueshiQiao/WinPaste"
+        }
       ]
     }
   ]

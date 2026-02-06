@@ -190,6 +190,68 @@ To add more or less space at the top/bottom of the cards (e.g., to prevent clipp
 2.  Increasing this value makes cards **shorter**; decreasing it makes them **taller**.
 
 
-## License
+## Architecture & Design Decisions
 
-GPL-3.0
+### Why Frontend Clipboard for Images? (Solving "Thread does not have a clipboard open")
+
+We use a **Hybrid Clipboard Approach** to solve the notorious Windows `OSError 1418` (Thread does not have a clipboard open).
+
+-   **Backend (Rust)**: Great for monitoring the clipboard and handling database checks. However, on Windows, clipboard access is bound to the thread that created the window (STA). Trying to write images from a background Tokio thread often leads to race conditions and "OpenClipboard Failed" errors. The solution would be to write images on the main thread, but this severely slows down UI responsiveness and causes lag.
+-   **Frontend (WebView2)**: The browser engine has a mature, stable implementation of `navigator.clipboard.write`.
+
+**Our Solution:**
+1.  **Frontend**: Writes the **Image Blob** directly to the system clipboard.
+2.  **Backend**: Updates the internal database and triggers the paste shortcut (`Shift+Insert`).
+
+### Why use `Shift+Insert` for Pasting?
+
+We use `Shift + Insert` as the default paste trigger instead of `Ctrl + V`.
+
+-   **Terminal Compatibility**: `Ctrl+V` often fails in terminal emulators (PowerShell, WSL, VS Code Terminal), sending a control character instead of pasting.
+-   **Legacy Standard**: `Shift+Insert` is the universal paste standard recognized by virtually all Windows applications, including terminals and legacy software.
+
+### Sequence Diagram for Image Pasting
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant FE as Frontend (React/App.tsx)
+    participant BROWSER as WebView2 / Browser
+    participant BE as Backend (Rust/commands.rs)
+    participant OS as OS / Target App
+
+    User->>FE: Double Click Image Clip
+    activate FE
+
+    Note over FE: 1. Prepare Data
+    FE->>FE: base64ToBlob(content)
+
+    Note over FE, BROWSER: 2. Write to Clipboard (Stable)
+    FE->>BROWSER: navigator.clipboard.write([Blob])
+    BROWSER->>OS: Set Clipboard Data (Image/PNG)
+
+    Note over FE: 3. Notify Backend
+    FE->>BE: invoke('paste_clip', { id })
+    deactivate FE
+    activate BE
+
+    Note over BE: 4. Database Updates
+    BE->>BE: Update 'last_pasted' & LRU
+
+    Note over BE: 5. Skip Legacy Write
+    BE->>BE: Log "Frontend handled image"
+
+    Note over BE, OS: 6. Window Management
+    BE->>OS: Hide Window
+    BE->>BE: sleep(200ms) (Wait for focus)
+
+    Note over BE, OS: 7. Trigger Paste
+    BE->>OS: Send Input (Shift + Insert)
+    deactivate BE
+
+    activate OS
+    OS->>OS: Receive Shift+Insert
+    OS->>OS: Read Clipboard (Image)
+    OS->>User: Display Pasted Image
+    deactivate OS
+```
