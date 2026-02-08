@@ -256,3 +256,9 @@ sequenceDiagram
     OS->>User: 显示粘贴的图片
     deactivate OS
 ```
+
+### Buy me a coffee
+
+如果对你有帮助，给我家小公主买杯喝的吧，谢谢<br/>
+欢迎在备注中加上你 GitHub 名字<br/>
+<a href="https://raw.githubusercontent.com/XueshiQiao/PastePaw/refs/heads/main/docs/sponsor_code_wechat.jpg" ><img src="https://raw.githubusercontent.com/XueshiQiao/PastePaw/refs/heads/main/docs/sponsor_code_wechat.jpg" alt="赞赏" style="width: 400px;"></a>
