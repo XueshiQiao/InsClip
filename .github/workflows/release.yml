@@ -28,7 +28,8 @@ jobs:
 
             ## Installation
 
-            Download the `.msi` or `.exe` installer from the assets below.
+            **Windows:** Download the `.msi` or `.exe` installer.
+            **macOS:** Download the `.dmg` installer.
           draft: false
           prerelease: false
 
@@ -44,6 +45,10 @@ jobs:
             target: 'x86_64-pc-windows-msvc'
           - platform: 'windows-latest'
             target: 'aarch64-pc-windows-msvc'
+          - platform: 'macos-latest'
+            target: 'aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            target: 'x86_64-apple-darwin'
 
     runs-on: ${{ matrix.platform }}
 

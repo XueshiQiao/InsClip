@@ -12,6 +12,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { isMacOS } from '../utils/platform';
 import { useTheme } from '../hooks/useTheme';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
@@ -223,7 +224,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
   const handleBrowseFile = async () => {
     try {
       const path = await invoke<string>('pick_file');
-      const filename = path.split('\\').pop() || path;
+      const filename = path.split(/[\\/]/).pop() || path;
       setNewIgnoredApp(filename);
     } catch (e) {
       console.log('File picker cancelled or failed', e);
@@ -454,27 +455,29 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         </select>
                       </div>
 
-                      <div className="space-y-3">
-                        <label className="block">
-                          <span className="text-sm font-medium">Window Effect</span>
-                        </label>
-                        <select
-                          value={settings.mica_effect || 'clear'}
-                          onChange={(e) => updateSetting('mica_effect', e.target.value)}
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="mica_alt">Mica Alt</option>
-                          <option value="mica">Mica</option>
-                          <option value="clear">Clear</option>
-                        </select>
-                      </div>
+                      {!isMacOS() && (
+                        <div className="space-y-3">
+                          <label className="block">
+                            <span className="text-sm font-medium">Window Effect</span>
+                          </label>
+                          <select
+                            value={settings.mica_effect || 'clear'}
+                            onChange={(e) => updateSetting('mica_effect', e.target.value)}
+                            className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                          >
+                            <option value="mica_alt">Mica Alt</option>
+                            <option value="mica">Mica</option>
+                            <option value="clear">Clear</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border border-border bg-accent/20 p-3">
                       <div>
-                        <span className="text-sm font-medium">Startup with Windows</span>
+                        <span className="text-sm font-medium">{isMacOS() ? 'Launch at Login' : 'Startup with Windows'}</span>
                         <p className="text-xs text-muted-foreground">
-                          Automatically start when Windows boots
+                          {isMacOS() ? 'Automatically start when you log in' : 'Automatically start when Windows boots'}
                         </p>
                       </div>
                       <button
@@ -590,7 +593,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                           type="text"
                           value={newIgnoredApp}
                           onChange={(e) => setNewIgnoredApp(e.target.value)}
-                          placeholder="e.g. notepad.exe"
+                          placeholder={isMacOS() ? 'e.g. Safari' : 'e.g. notepad.exe'}
                           className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                           onKeyDown={(e) => e.key === 'Enter' && handleAddIgnoredApp()}
                         />

@@ -31,11 +31,6 @@ use database::Database;
 pub fn run_app() {
     let builder = tauri::Builder::default();
 
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder.plugin(tauri_plugin_log::Builder::default().build());
-    }
-
     let data_dir = get_data_dir();
     fs::create_dir_all(&data_dir).ok();
     let db_path = data_dir.join("paste_paw.db");
@@ -196,9 +191,14 @@ pub fn run_app() {
                 e
             })?;
 
-            let _tray = TrayIconBuilder::new()
+            let tray_builder = TrayIconBuilder::new()
                 .icon(icon)
-                .menu(&menu)
+                .menu(&menu);
+
+            #[cfg(target_os = "macos")]
+            let tray_builder = tray_builder.icon_as_template(true);
+
+            let _tray = tray_builder
                 .tooltip("PastePaw")
                 .on_menu_event(move |app, event| {
                     if event.id.as_ref() == "quit" {
@@ -254,13 +254,17 @@ pub fn run_app() {
             #[cfg(target_os = "macos")]
             let _ = apply_vibrancy(&win, NSVisualEffectMaterial::WindowBackground, None, None);
 
-            let _ = app_handle.plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
-
             // Load saved hotkey from database or use default
             let db_for_hotkey = db_for_clipboard.clone();
             let saved_hotkey = get_runtime().unwrap().block_on(async {
                 db_for_hotkey.get_setting("hotkey").await.ok().flatten()
-            }).unwrap_or_else(|| "Ctrl+Shift+V".to_string());
+            }).unwrap_or_else(|| {
+                if cfg!(target_os = "macos") {
+                    "Cmd+Shift+V".to_string()
+                } else {
+                    "Ctrl+Shift+V".to_string()
+                }
+            });
 
             log::info!("Registering hotkey: {}", saved_hotkey);
 
@@ -543,31 +547,29 @@ pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &
     {
         use window_vibrancy::{clear_mica, apply_mica, apply_tabbed};
 
-        // 1. mica && mica_tabbed(mica_alt) ref:https://learn.microsoft.com/en-us/windows/apps/design/style/mica
-        // "Mica Alt is a variant of Mica, with stronger tinting of the user's desktop background color"
-        // 2. How to use: DWMWA_USE_IMMERSIVE_DARK_MODE (underlying of apply_mica)?
-        // After passing hWnd (the handle to the window you want to change) as your first parameter,
-        // you need to pass in DWMWA_USE_IMMERSIVE_DARK_MODE as the dwAttribute parameter.
-        // This is a constant in the DWM API that lets the Windows frame be drawn in Dark mode colors when the Dark mode system setting is enabled.
-        // If you switch to Light mode, you will have to change DWMWA_USE_IMMERSIVE_DARK_MODE from 20 to 0
-        // for the title bar to be drawn in light mode colors.
-        // see https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes
         match effect {
             "clear" => {
                 let _ = clear_mica(window);
                 log::info!("THEME:Mica effect cleared");
             },
-            "mica" | "dark" => {  // dark for legacy reasons, remove in future
+            "mica" | "dark" => {
                 let _ = clear_mica(window);
                 let _ = apply_mica(window, Some(matches!(theme, tauri::Theme::Dark)));
                 log::info!("THEME:Applied Mica effect (Theme: {})", theme);
             },
-            "mica_alt" | "auto" | _ => {  // auto for legacy reasons, remove in future
+            "mica_alt" | "auto" | _ => {
                 let _ = clear_mica(window);
-                // Use Tabbed effect for 'mica_alt' as it looks more modern on Win11
                 let _ = apply_tabbed(window, Some(matches!(theme, tauri::Theme::Dark)));
                 log::info!("THEME:Applied Tabbed effect (Theme: {})", theme);
             }
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = effect;
+        let _ = theme;
+        let _ = apply_vibrancy(window, NSVisualEffectMaterial::WindowBackground, None, None);
+        log::info!("THEME:Applied macOS vibrancy (WindowBackground)");
     }
 }

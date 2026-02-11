@@ -24,7 +24,7 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         {
-          "url": "https://github.com/XueshiQiao/WinPaste"
+          "url": "https://github.com/XueshiQiao/PastePaw"
         }
       ]
     }

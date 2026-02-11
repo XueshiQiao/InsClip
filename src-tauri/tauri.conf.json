@@ -33,11 +33,12 @@
                 "default"
             ]
         },
-        "withGlobalTauri": true
+        "withGlobalTauri": true,
+        "macOSPrivateApi": true
     },
     "bundle": {
         "active": true,
-        "targets": "nsis",
+        "targets": "all",
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",

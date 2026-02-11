@@ -278,6 +278,11 @@ pub async fn paste_clip(id: String, app: AppHandle, window: tauri::WebviewWindow
                             std::thread::sleep(std::time::Duration::from_millis(200));
                             crate::clipboard::send_paste_input();
                         }
+                        #[cfg(target_os = "macos")]
+                        {
+                            std::thread::sleep(std::time::Duration::from_millis(300));
+                            crate::clipboard::send_paste_input();
+                        }
                     })));
                 } else {
                      // If auto_paste is disabled, we still hide the window (as requested by original "copy to text field" intent,
@@ -503,7 +508,7 @@ pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -
         "auto_delete_days": 30,
         "startup_with_windows": false, // Default, will override below
         "show_in_taskbar": false,
-        "hotkey": "Ctrl+Shift+V",
+        "hotkey": if cfg!(target_os = "macos") { "Cmd+Shift+V" } else { "Ctrl+Shift+V" },
         "theme": "dark",
         "mica_effect": "clear",
         "auto_paste": true,
@@ -939,7 +944,25 @@ pub async fn pick_file() -> Result<String, String> {
             Err("Failed to open file picker".to_string())
         }
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let script = r#"POSIX path of (choose file of type {"app"} with prompt "Select an application")"#;
+        let output = Command::new("osascript")
+            .args(["-e", script])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if path.is_empty() {
+                return Err("No file selected".to_string());
+            }
+            Ok(path)
+        } else {
+            Err("No file selected".to_string())
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         Err("Not supported on this OS".to_string())
     }

@@ -7,20 +7,31 @@ use crate::database::Database;
 use uuid::Uuid;
 use sha2::{Digest, Sha256};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+#[cfg(target_os = "windows")]
 use windows::Win32::Foundation::MAX_PATH;
+#[cfg(target_os = "windows")]
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+#[cfg(target_os = "windows")]
 use windows::Win32::System::ProcessStatus::{GetModuleBaseNameW, GetModuleFileNameExW};
+#[cfg(target_os = "windows")]
 use windows::Win32::Storage::FileSystem::{GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW};
+#[cfg(target_os = "windows")]
 use windows::Win32::System::DataExchange::GetClipboardOwner;
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId, DestroyIcon, DrawIconEx, DI_NORMAL, GetIconInfo, ICONINFO};
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_SHIFT, VK_INSERT};
+#[cfg(target_os = "windows")]
 use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHFILEINFOW, SHGFI_USEFILEATTRIBUTES};
+#[cfg(target_os = "windows")]
 use windows::Win32::Graphics::Gdi::{
     GetObjectW, GetDC, ReleaseDC, CreateCompatibleDC, SelectObject, DeleteDC,
     GetDIBits, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
     BITMAP, HBITMAP, CreateCompatibleBitmap, DeleteObject
 };
+#[cfg(target_os = "windows")]
 use std::ffi::OsStr;
+#[cfg(target_os = "windows")]
 use std::os::windows::ffi::OsStrExt;
 use once_cell::sync::Lazy;
 
@@ -254,6 +265,7 @@ fn calculate_hash(content: &[u8]) -> String {
     format!("{:x}", result)
 }
 
+#[cfg(target_os = "windows")]
 fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>, Option<String>, Option<String>, bool) {
     unsafe {
         let (hwnd, is_explicit) = match GetClipboardOwner() {
@@ -315,6 +327,7 @@ fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>, Option<Str
     }
 }
 
+#[cfg(target_os = "windows")]
 unsafe fn get_app_description(path: &str) -> Option<String> {
     use std::ffi::c_void;
 
@@ -376,6 +389,7 @@ unsafe fn get_app_description(path: &str) -> Option<String> {
     None
 }
 
+#[cfg(target_os = "windows")]
 unsafe fn extract_icon(path: &str) -> Option<String> {
     use image::ImageEncoder;
 
@@ -502,5 +516,121 @@ pub fn send_paste_input() {
         ];
 
         SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn get_clipboard_owner_app_info() -> (Option<String>, Option<String>, Option<String>, Option<String>, bool) {
+    use std::process::Command;
+
+    let output = Command::new("osascript")
+        .args(["-e", "tell application \"System Events\" to get {name, bundle identifier} of first application process whose frontmost is true"])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            // Result format: "AppName, com.example.app"
+            let parts: Vec<&str> = result.splitn(2, ", ").collect();
+            let app_name = parts.first().map(|s| s.to_string());
+            let bundle_id = parts.get(1).map(|s| s.to_string());
+
+            let icon = bundle_id.as_ref().and_then(|bid| extract_macos_app_icon(bid));
+
+            (app_name, icon, bundle_id.clone(), bundle_id, true)
+        }
+        _ => {
+            log::warn!("CLIPBOARD: Failed to get frontmost app info via osascript");
+            (None, None, None, None, false)
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn extract_macos_app_icon(bundle_id: &str) -> Option<String> {
+    use std::process::Command;
+
+    // Find the .app bundle path from bundle ID
+    let mdfind_output = Command::new("mdfind")
+        .args([&format!("kMDItemCFBundleIdentifier == '{}'", bundle_id)])
+        .output()
+        .ok()?;
+
+    let app_path = String::from_utf8_lossy(&mdfind_output.stdout)
+        .lines()
+        .find(|l| l.ends_with(".app"))
+        .map(|s| s.to_string())?;
+
+    // Read CFBundleIconFile from Info.plist
+    let plist_path = format!("{}/Contents/Info.plist", app_path);
+    let icon_name_output = Command::new("/usr/libexec/PlistBuddy")
+        .args(["-c", "Print :CFBundleIconFile", &plist_path])
+        .output()
+        .ok()?;
+
+    if !icon_name_output.status.success() {
+        // Try CFBundleIconName as fallback
+        let icon_name_output2 = Command::new("/usr/libexec/PlistBuddy")
+            .args(["-c", "Print :CFBundleIconName", &plist_path])
+            .output()
+            .ok()?;
+        if !icon_name_output2.status.success() {
+            return None;
+        }
+    }
+
+    let icon_name_raw = String::from_utf8_lossy(&icon_name_output.stdout).trim().to_string();
+    // Append .icns if not present
+    let icon_file = if icon_name_raw.ends_with(".icns") {
+        icon_name_raw
+    } else {
+        format!("{}.icns", icon_name_raw)
+    };
+
+    let icns_path = format!("{}/Contents/Resources/{}", app_path, icon_file);
+
+    // Check if the icns file exists
+    if !std::path::Path::new(&icns_path).exists() {
+        return None;
+    }
+
+    // Convert .icns to PNG via sips (built-in macOS tool)
+    let tmp_png = format!("/tmp/pastepaw_icon_{}.png", bundle_id.replace('.', "_"));
+    let sips_result = Command::new("sips")
+        .args(["-s", "format", "png", "--resampleWidth", "64", &icns_path, "--out", &tmp_png])
+        .output()
+        .ok()?;
+
+    if !sips_result.status.success() {
+        return None;
+    }
+
+    // Read and encode as base64
+    let png_data = std::fs::read(&tmp_png).ok()?;
+    let _ = std::fs::remove_file(&tmp_png);
+
+    Some(BASE64.encode(&png_data))
+}
+
+#[cfg(target_os = "macos")]
+pub fn send_paste_input() {
+    use std::process::Command;
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let result = Command::new("osascript")
+        .args(["-e", "tell application \"System Events\" to keystroke \"v\" using command down"])
+        .output();
+
+    match result {
+        Ok(out) if out.status.success() => {
+            log::info!("CLIPBOARD: macOS paste simulation sent (Cmd+V)");
+        }
+        Ok(out) => {
+            log::warn!("CLIPBOARD: osascript paste failed: {}", String::from_utf8_lossy(&out.stderr));
+        }
+        Err(e) => {
+            log::warn!("CLIPBOARD: Failed to run osascript for paste: {}", e);
+        }
     }
 }
