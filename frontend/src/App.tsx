@@ -14,6 +14,7 @@ import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
 import { Toaster, toast } from 'sonner';
 import { LAYOUT } from './constants';
+import { isMacOS } from './utils/platform';
 
 const base64ToBlob = (base64: string, mimeType: string = 'image/png'): Blob => {
   const byteCharacters = atob(base64);
@@ -533,26 +534,28 @@ function App() {
     }
   };
 
+  const mac = isMacOS();
+
   return (
     <div className="relative h-screen w-full overflow-hidden">
-      {/*
-      Background Layer with Blur:
-      The Limitation: Standard CSS backdrop-filter:
-      blur() works by blurring elements behind the div. However, on a transparent app window,
-      the "element behind" is the OS desktop, which the browser engine cannot see or blur for security and
-      performance reasons. This is why you see "no blur" right now—it's trying to blur transparent pixels.
-      */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: 'transparent',
-          backdropFilter: 'blur(2px)',
-        }}
-      />
+      {/* Blur layer: Windows only */}
+      {!mac && (
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: 'transparent',
+            backdropFilter: 'blur(2px)',
+          }}
+        />
+      )}
 
       {/* Content Container */}
-      <div className="relative h-full w-full" style={{ padding: `${LAYOUT.WINDOW_PADDING}px` }}>
-        <div className="flex h-full w-full flex-col overflow-hidden rounded-[12px] border border-border/10 bg-background/80 font-sans text-foreground shadow-[0_0_24px_rgba(0,0,0,0.2)] dark:shadow-[0_0_24px_rgba(0,0,0,0.4)]">
+      <div className="relative h-full w-full" style={{ padding: mac ? '0px 14px 4px 14px' : `${LAYOUT.WINDOW_PADDING}px` }}>
+        <div className={`flex h-full w-full flex-col overflow-hidden font-sans text-foreground ${
+          mac
+            ? 'rounded-[12px] bg-background'
+            : 'rounded-[12px] border border-border/10 bg-background/80 shadow-[0_0_24px_rgba(0,0,0,0.2)] dark:shadow-[0_0_24px_rgba(0,0,0,0.4)]'
+        }`}>
           {draggingClipId && (
             <DragPreview
               clip={clips.find((c) => c.id === draggingClipId)!}

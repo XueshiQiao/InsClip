@@ -12,8 +12,6 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
-#[cfg(target_os = "macos")]
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 static IS_ANIMATING: AtomicBool = AtomicBool::new(false);
 static LAST_SHOW_TIME: AtomicI64 = AtomicI64::new(0);
@@ -251,9 +249,6 @@ pub fn run_app() {
                 crate::apply_window_effect(&win, &mica_effect, &current_theme);
             }
 
-            #[cfg(target_os = "macos")]
-            let _ = apply_vibrancy(&win, NSVisualEffectMaterial::WindowBackground, None, None);
-
             // Load saved hotkey from database or use default
             let db_for_hotkey = db_for_clipboard.clone();
             let saved_hotkey = get_runtime().unwrap().block_on(async {
@@ -348,22 +343,37 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
         if let Some(monitor) = monitor {
             let scale_factor = monitor.scale_factor();
 
-            let _screen_size = monitor.size();
-            let _monitor_pos = monitor.position();
-
-            log::debug!("Monitor size: {:?}, Monitor position: {:?}, Scale factor: {:?}", _screen_size, _monitor_pos, scale_factor);
+            let screen_size = monitor.size();
+            let monitor_pos = monitor.position();
 
             let work_area = monitor.work_area();
             let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
             let window_margin_px = (constants::WINDOW_MARGIN * scale_factor) as i32;
+
+            let screen_bottom = monitor_pos.y + screen_size.height as i32;
+            let work_area_bottom = work_area.position.y + work_area.size.height as i32;
+            let dock_gap = screen_bottom - work_area_bottom;
+
+            log::info!("POSITION: screen={}x{} at ({},{}), work_area={}x{} at ({},{}), scale={}, screen_bottom={}, work_area_bottom={}, dock_gap={}",
+                screen_size.width, screen_size.height, monitor_pos.x, monitor_pos.y,
+                work_area.size.width, work_area.size.height, work_area.position.x, work_area.position.y,
+                scale_factor, screen_bottom, work_area_bottom, dock_gap);
 
             let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
                 width: work_area.size.width - (window_margin_px as u32 * 2),
                 height: window_height_px,
             }));
 
-            let target_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
-            let start_y = work_area.position.y + (work_area.size.height as i32); // Just off screen
+            // On macOS, work_area has extra padding above the Dock; use ~30% of dock_gap to close it
+            #[cfg(target_os = "macos")]
+            let bottom_inset_px = dock_gap * 30 / 100;
+            #[cfg(not(target_os = "macos"))]
+            let bottom_inset_px = 0;
+            let target_y = work_area_bottom - (window_height_px as i32) - window_margin_px + bottom_inset_px;
+            let start_y = work_area_bottom; // Just off screen (at work area bottom, not further)
+
+            log::info!("POSITION: target_y={}, window_bottom={}, work_area_bottom={}, screen_bottom={}, dock_gap={}, inset={}, window_h={}",
+                target_y, target_y + window_height_px as i32, work_area_bottom, screen_bottom, dock_gap, bottom_inset_px, window_height_px);
 
             // Initial setup
             let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -413,11 +423,21 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
             let scale_factor = monitor.scale_factor();
             let work_area = monitor.work_area();
 
+            let screen_size = monitor.size();
+            let monitor_pos = monitor.position();
             let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
             let window_margin_px = (constants::WINDOW_MARGIN * scale_factor) as i32;
 
-            let start_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
-            let target_y = work_area.position.y + (work_area.size.height as i32); // Off screen (starts at bottom of work area)
+            let screen_bottom = monitor_pos.y + screen_size.height as i32;
+            let work_area_bottom = work_area.position.y + work_area.size.height as i32;
+            let dock_gap = screen_bottom - work_area_bottom;
+
+            #[cfg(target_os = "macos")]
+            let bottom_inset_px = dock_gap * 30 / 100;
+            #[cfg(not(target_os = "macos"))]
+            let bottom_inset_px = 0;
+            let start_y = work_area_bottom - (window_height_px as i32) - window_margin_px + bottom_inset_px;
+            let target_y = work_area_bottom; // Off screen (at work area bottom, not further)
 
             // Fix Z-Order: Dynamic Switch & Fade Out
             #[cfg(target_os = "windows")]
@@ -569,7 +589,7 @@ pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &
     {
         let _ = effect;
         let _ = theme;
-        let _ = apply_vibrancy(window, NSVisualEffectMaterial::WindowBackground, None, None);
-        log::info!("THEME:Applied macOS vibrancy (WindowBackground)");
+        let _ = window;
+        // No vibrancy on macOS — solid background via CSS
     }
 }
