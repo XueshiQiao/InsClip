@@ -117,10 +117,10 @@ pub fn run_app() {
                                 return;
                             }
 
-                            // Debounce: Ignore blur events immediately after showing (500ms grace period)
+                            // Debounce: Ignore blur events immediately after showing (150ms grace period)
                             let last_show = LAST_SHOW_TIME.load(Ordering::SeqCst);
                             let now = chrono::Local::now().timestamp_millis();
-                            if now - last_show < 500 {
+                            if now - last_show < 150 {
                                 return;
                             }
 
@@ -135,30 +135,8 @@ pub fn run_app() {
                                      return;
                                  }
 
-                                 // Check if cursor is on a different monitor
-                                 let current_monitor = win.current_monitor().ok().flatten();
-                                 let cursor_monitor = get_monitor_at_cursor(&win);
-
-                                 let mut moved_screens = false;
-                                 if let (Some(cm), Some(crm)) = (&current_monitor, &cursor_monitor) {
-                                     // Compare monitor names or positions to see if they are different
-                                     // Position is usually unique enough
-                                     if cm.position().x != crm.position().x || cm.position().y != crm.position().y {
-                                         moved_screens = true;
-                                     }
-                                 }
-
-                                 if moved_screens {
-                                     // User clicked on another screen, move window there immediately
-                                     position_window_at_bottom(&win);
-                                     let _ = win.show();
-                                     let _ = win.set_focus();
-                                 } else {
-                                     // Normal blur handling (hide)
-                                     if win.is_visible().unwrap_or(false) {
-                                         crate::animate_window_hide(&win, None);
-                                     }
-                                 }
+                                 // Normal blur handling (hide)
+                                 crate::animate_window_hide(&win, None);
                             }
                         }
                     }
@@ -530,7 +508,37 @@ pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Mon
         }
         found.or_else(|| window.current_monitor().ok().flatten())
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+        use core_graphics::event::CGEvent;
+
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok();
+        let cursor_pos = source.and_then(|src| CGEvent::new(src).ok()).map(|e| e.location());
+
+        if let Some(point) = cursor_pos {
+            if let Ok(monitors) = window.available_monitors() {
+                for m in monitors {
+                    let scale = m.scale_factor();
+                    let pos = m.position();
+                    let size = m.size();
+                    
+                    let logical_x = pos.x as f64 / scale;
+                    let logical_y = pos.y as f64 / scale;
+                    let logical_w = size.width as f64 / scale;
+                    let logical_h = size.height as f64 / scale;
+
+                    if point.x >= logical_x && point.x < logical_x + logical_w &&
+                       point.y >= logical_y && point.y < logical_y + logical_h {
+                        return Some(m);
+                    }
+                }
+            }
+        }
+        window.current_monitor().ok().flatten()
+            .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()))
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         window.current_monitor().ok().flatten()
             .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()))
