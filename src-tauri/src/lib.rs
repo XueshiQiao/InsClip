@@ -222,6 +222,8 @@ pub fn run_app() {
 
             #[cfg(target_os = "macos")]
             {
+                // Set activation policy to Accessory to hide dock icon and menu bar
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
                 // Set window level to NSStatusWindowLevel (25) to be above the Dock
                 crate::set_window_level(&win, 25);
             }
@@ -474,6 +476,17 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
             }
 
             let _ = window.hide();
+
+            #[cfg(target_os = "macos")]
+            {
+                use cocoa::appkit::NSApplication;
+                use cocoa::base::nil;
+                use objc::{msg_send, sel, sel_impl};
+                unsafe {
+                    let app = NSApplication::sharedApplication(nil);
+                    let _: () = msg_send![app, hide:nil];
+                }
+            }
 
             if let Some(callback) = on_done {
                 callback();

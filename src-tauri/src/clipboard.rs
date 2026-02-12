@@ -614,23 +614,52 @@ fn extract_macos_app_icon(bundle_id: &str) -> Option<String> {
 
 #[cfg(target_os = "macos")]
 pub fn send_paste_input() {
-    use std::process::Command;
+    use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventFlags, CGKeyCode};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    log::info!("CLIPBOARD: Preparing to send Cmd+V...");
+    // Give a delay for focus to switch
+    std::thread::sleep(std::time::Duration::from_millis(50));
 
-    let result = Command::new("osascript")
-        .args(["-e", "tell application \"System Events\" to keystroke \"v\" using command down"])
-        .output();
+    // kVK_ANSI_V = 0x09
+    let v_key: CGKeyCode = 0x09;
+    // kVK_Command = 0x37 (55)
+    let cmd_key: CGKeyCode = 0x37;
 
-    match result {
-        Ok(out) if out.status.success() => {
-            log::info!("CLIPBOARD: macOS paste simulation sent (Cmd+V)");
-        }
-        Ok(out) => {
-            log::warn!("CLIPBOARD: osascript paste failed: {}", String::from_utf8_lossy(&out.stderr));
-        }
+    let source = match CGEventSource::new(CGEventSourceStateID::HIDSystemState) {
+        Ok(src) => src,
         Err(e) => {
-            log::warn!("CLIPBOARD: Failed to run osascript for paste: {}", e);
+            log::error!("CLIPBOARD: Failed to create CGEventSource: {:?}", e);
+            return;
         }
+    };
+
+    // 1. Cmd Down
+    if let Ok(event) = CGEvent::new_keyboard_event(source.clone(), cmd_key, true) {
+        event.set_flags(CGEventFlags::CGEventFlagCommand); 
+        event.post(CGEventTapLocation::HID);
+    } else {
+        log::error!("CLIPBOARD: Failed to create Cmd Down event");
     }
+
+    // 2. V Down
+    if let Ok(event) = CGEvent::new_keyboard_event(source.clone(), v_key, true) {
+        event.set_flags(CGEventFlags::CGEventFlagCommand);
+        event.post(CGEventTapLocation::HID);
+    } else {
+        log::error!("CLIPBOARD: Failed to create V Down event");
+    }
+
+    // 3. V Up
+    if let Ok(event) = CGEvent::new_keyboard_event(source.clone(), v_key, false) {
+        event.set_flags(CGEventFlags::CGEventFlagCommand);
+        event.post(CGEventTapLocation::HID);
+    }
+
+    // 4. Cmd Up
+    if let Ok(event) = CGEvent::new_keyboard_event(source, cmd_key, false) {
+        event.post(CGEventTapLocation::HID);
+    }
+
+    log::info!("CLIPBOARD: Sent explicit Cmd Down -> V -> Cmd Up via CoreGraphics");
 }
