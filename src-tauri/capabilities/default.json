@@ -10,6 +10,7 @@
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-hide",
+    "core:window:allow-start-dragging",
     "core:app:default",
     "core:path:default",
     "core:webview:allow-create-webview-window",

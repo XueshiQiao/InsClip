@@ -16,6 +16,7 @@ import { isMacOS } from '../utils/platform';
 import { useTheme } from '../hooks/useTheme';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getVersion } from '@tauri-apps/api/app';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { check } from '@tauri-apps/plugin-updater';
@@ -379,11 +380,22 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
         }}
         onCancel={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
       />
-      <div className="flex h-full flex-col bg-background text-foreground">
+      <div className="flex h-full flex-col select-none bg-background text-foreground">
         {/* Header */}
-        <div className="drag-area flex items-center justify-between border-b border-border p-4">
+        <div
+          className="flex items-center justify-between border-b border-border p-4"
+          onMouseDown={(e) => {
+            if (e.button === 0) {
+              getCurrentWindow().startDragging();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">Settings</h2>
-          <button onClick={onClose} className="icon-button">
+          <button
+            onClick={onClose}
+            className="icon-button"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <X size={18} />
           </button>
         </div>

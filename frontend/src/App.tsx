@@ -103,6 +103,7 @@ function App() {
       height: 700,
       resizable: true,
       decorations: false, // We have our own title bar in SettingsPanel
+      transparent: true,
       center: true,
     });
 
