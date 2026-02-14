@@ -49,6 +49,7 @@ function PromptEditor({
   onSave: (val: string) => void;
   onSaveTitle?: (val: string) => void;
 }) {
+  const { t } = useTranslation();
   const [localValue, setLocalValue] = useState(value);
   const [localTitle, setLocalTitle] = useState(titleValue || label);
 
@@ -77,7 +78,7 @@ function PromptEditor({
           title="Click to rename action"
         />
         <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-          Action Name
+          {t('settings.actionName')}
         </span>
       </div>
       <textarea
@@ -260,14 +261,13 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
   const confirmClearHistory = () => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Clear History',
-      message:
-        'Are you sure you want to clear your ENTIRE clipboard history? This cannot be undone.',
+      title: t('settings.clearHistoryTitle'),
+      message: t('settings.clearHistoryMessage'),
       action: async () => {
         try {
           await invoke('clear_all_clips');
           setHistorySize(0);
-          toast.success('Clipboard history cleared successfully.');
+          toast.success(t('settings.clearHistorySuccess'));
         } catch (error) {
           console.error('Failed to clear history:', error);
           toast.error(`Failed to clear history: ${error}`);
@@ -401,7 +401,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
             }
           }}
         >
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="text-lg font-semibold">{t('settings.title')}</h2>
           <button
             onClick={onClose}
             className="icon-button"
@@ -462,7 +462,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                 <>
                   <section className="space-y-4">
                     <h3 className="text-sm font-medium text-muted-foreground">
-                      Appearance & Behavior
+                      {t('settings.appearanceBehavior')}
                     </h3>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -475,9 +475,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                           onChange={(e) => handleThemeChange(e.target.value)}
                           className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                         >
-                          <option value="dark">Dark</option>
-                          <option value="light">Light</option>
-                          <option value="system">System</option>
+                          <option value="dark">{t('settings.themeDark')}</option>
+                          <option value="light">{t('settings.themeLight')}</option>
+                          <option value="system">{t('settings.themeSystem')}</option>
                         </select>
                       </div>
 
@@ -570,7 +570,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                   </section>
 
                   <section className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">Shortcuts</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">{t('settings.shortcuts')}</h3>
                     <div className="space-y-3">
                       <label className="block">
                         <span className="text-sm font-medium">{t('settings.hotkey')}</span>
@@ -618,7 +618,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                   <section className="space-y-4">
                     <h3 className="text-sm font-medium text-muted-foreground">
-                      Privacy Exceptions
+                      {t('settings.privacyExceptions')}
                     </h3>
                     <div className="space-y-3">
                       <label className="block">
@@ -657,7 +657,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                       <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
                         {ignoredApps.length === 0 ? (
                           <div className="rounded-lg border border-dashed border-border p-4 text-center">
-                            <p className="text-xs text-muted-foreground">No ignored applications</p>
+                            <p className="text-xs text-muted-foreground">{t('settings.noIgnoredApps')}</p>
                           </div>
                         ) : (
                           ignoredApps.map((app) => (
@@ -680,21 +680,21 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                   </section>
 
                   <section className="space-y-4">
-                    <h3 className="text-sm font-medium text-red-500/80">Data Management</h3>
+                    <h3 className="text-sm font-medium text-red-500/80">{t('settings.dataManagement')}</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         onClick={confirmClearHistory}
                         className="btn border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20"
                       >
                         <Trash2 size={16} className="mr-2" />
-                        Clear History
+                        {t('settings.clearHistory')}
                       </button>
 
                       <button
                         onClick={async () => {
                           try {
                             const count = await invoke<number>('remove_duplicate_clips');
-                            toast.success(`Removed ${count} duplicate clips`);
+                            toast.success(t('settings.removeDuplicatesSuccess', { count }));
                             const newSize = await invoke<number>('get_clipboard_history_size');
                             setHistorySize(newSize);
                           } catch (error) {
@@ -704,7 +704,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         }}
                         className="btn btn-secondary text-xs"
                       >
-                        Remove Duplicates
+                        {t('settings.removeDuplicates')}
                       </button>
                     </div>
                   </section>
@@ -715,7 +715,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
               {activeTab === 'ai' && (
                 <>
                   <section className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">AI Configuration</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">{t('settings.aiConfiguration')}</h3>
 
                     <div className="space-y-3">
                       <label className="block">
@@ -742,9 +742,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         }}
                         className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       >
-                        <option value="openai">OpenAI</option>
-                        <option value="deepseek">DeepSeek</option>
-                        <option value="custom">Custom (OpenAI Compatible)</option>
+                        <option value="openai">{t('settings.providerOpenAI')}</option>
+                        <option value="deepseek">{t('settings.providerDeepSeek')}</option>
+                        <option value="custom">{t('settings.providerCustom')}</option>
                       </select>
                     </div>
 
@@ -801,46 +801,46 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                   </section>
 
                   <section className="space-y-4 border-t border-border/50 pt-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">Custom Prompts</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">{t('settings.customPrompts')}</h3>
                     <p className="text-xs italic text-muted-foreground">
-                      Leave blank to use default prompts.
+                      {t('settings.customPromptsDesc')}
                     </p>
 
                     <div className="space-y-4">
                       <PromptEditor
-                        label="Summarize"
+                        label={t('settings.aiSummarize')}
                         value={settings.ai_prompt_summarize || ''}
                         titleValue={settings.ai_title_summarize}
                         onSave={(val) => updateSetting('ai_prompt_summarize', val)}
                         onSaveTitle={(val) => updateSetting('ai_title_summarize', val)}
-                        placeholder="Default: You are a helpful assistant. Summarize the following text concisely."
+                        placeholder={t('settings.aiSummarizePlaceholder')}
                       />
 
                       <PromptEditor
-                        label="Translate"
+                        label={t('settings.aiTranslate')}
                         value={settings.ai_prompt_translate || ''}
                         titleValue={settings.ai_title_translate}
                         onSave={(val) => updateSetting('ai_prompt_translate', val)}
                         onSaveTitle={(val) => updateSetting('ai_title_translate', val)}
-                        placeholder="Default: You are a helpful assistant. Translate the following text to English (or specify your target language)."
+                        placeholder={t('settings.aiTranslatePlaceholder')}
                       />
 
                       <PromptEditor
-                        label="Explain Code"
+                        label={t('settings.aiExplainCode')}
                         value={settings.ai_prompt_explain_code || ''}
                         titleValue={settings.ai_title_explain_code}
                         onSave={(val) => updateSetting('ai_prompt_explain_code', val)}
                         onSaveTitle={(val) => updateSetting('ai_title_explain_code', val)}
-                        placeholder="Default: You are a helpful assistant. Explain what the following code does."
+                        placeholder={t('settings.aiExplainCodePlaceholder')}
                       />
 
                       <PromptEditor
-                        label="Fix Grammar"
+                        label={t('settings.aiFixGrammar')}
                         value={settings.ai_prompt_fix_grammar || ''}
                         titleValue={settings.ai_title_fix_grammar}
                         onSave={(val) => updateSetting('ai_prompt_fix_grammar', val)}
                         onSaveTitle={(val) => updateSetting('ai_title_fix_grammar', val)}
-                        placeholder="Default: You are a helpful assistant. Fix the grammar and improve the style..."
+                        placeholder={t('settings.aiFixGrammarPlaceholder')}
                       />
                     </div>
                   </section>
@@ -850,14 +850,14 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
               {/* --- FOLDERS TAB --- */}
               {activeTab === 'folders' && (
                 <section className="space-y-4">
-                  <h3 className="text-sm font-medium text-muted-foreground">Manage Folders</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground">{t('settings.manageFolders')}</h3>
 
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={newFolderName}
                       onChange={(e) => setNewFolderName(e.target.value)}
-                      placeholder="New Folder Name"
+                      placeholder={t('settings.newFolderPlaceholder')}
                       className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
                     />
@@ -867,14 +867,14 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                       className="btn btn-secondary px-3"
                     >
                       <Plus size={16} className="mr-1" />
-                      Add
+                      {t('settings.add')}
                     </button>
                   </div>
 
                   <div className="mt-4 space-y-2">
                     {folders.filter((f) => !f.is_system).length === 0 ? (
                       <p className="rounded-lg border border-dashed border-border py-4 text-center text-xs text-muted-foreground">
-                        No custom folders created.
+                        {t('settings.noFolders')}
                       </p>
                     ) : (
                       folders
@@ -901,13 +901,13 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                                   onClick={saveRenameFolder}
                                   className="text-xs text-primary hover:underline"
                                 >
-                                  Save
+                                  {t('common.save')}
                                 </button>
                                 <button
                                   onClick={() => setEditingFolderId(null)}
                                   className="text-xs text-muted-foreground hover:underline"
                                 >
-                                  Cancel
+                                  {t('common.cancel')}
                                 </button>
                               </div>
                             ) : (
@@ -959,7 +959,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
             <span>© 2025</span>
             <span>•</span>
             <button onClick={handleCheckUpdate} className="underline hover:text-foreground">
-              Check for Updates
+              {t('settings.checkForUpdates')}
             </button>
           </div>
         </div>
