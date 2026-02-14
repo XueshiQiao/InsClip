@@ -14,9 +14,16 @@ INSTALLER_DIST_IDENTITY="3rd Party Mac Developer Installer"
 
 echo "🚀 Starting App Store build for $APP_NAME..."
 
+# Check for placeholder TEAM_ID in Entitlements.plist
+if grep -q "YOUR_TEAM_ID" src-tauri/Entitlements.plist; then
+  echo "❌ Error: 'YOUR_TEAM_ID' placeholder found in src-tauri/Entitlements.plist."
+  echo "👉 Please replace it with your actual Apple Team ID before building."
+  exit 1
+fi
+
 # 1. Build Universal Binary using the App Store configuration overlay
 echo "📦 Building universal app bundle..."
-pnpm tauri build --bundles app --target universal-apple-darwin 
+pnpm tauri build --bundles app --target universal-apple-darwin \
   --config src-tauri/tauri.appstore.conf.json
 
 APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/$APP_NAME.app"
@@ -29,9 +36,9 @@ codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 echo "🎁 Creating .pkg installer..."
 # Note: productbuild requires the Installer certificate
 # If certificates are not in Keychain, this step will fail.
-xcrun productbuild 
-  --sign "$INSTALLER_DIST_IDENTITY" 
-  --component "$APP_PATH" /Applications 
+xcrun productbuild \
+  --sign "$INSTALLER_DIST_IDENTITY" \
+  --component "$APP_PATH" /Applications \
   "$APP_NAME.pkg"
 
 echo "✅ Build complete! Output: $APP_NAME.pkg"
