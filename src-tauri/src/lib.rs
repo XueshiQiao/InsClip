@@ -686,7 +686,7 @@ fn set_window_level(window: &tauri::WebviewWindow, level: i64) {
 
 #[cfg(target_os = "macos")]
 fn setup_macos_window(ns_window: cocoa::base::id) {
-    use cocoa::appkit::NSWindow;
+    use cocoa::appkit::{NSWindow, NSWindowStyleMask};
     use cocoa::foundation::NSString;
     use cocoa::base::{id, nil, NO, YES};
     use objc::{msg_send, sel, sel_impl, class};
@@ -696,7 +696,12 @@ fn setup_macos_window(ns_window: cocoa::base::id) {
         ns_window.setOpaque_(NO);
         ns_window.setBackgroundColor_(msg_send![class!(NSColor), clearColor]);
 
-        // 2. Access the WKWebView and disable its background drawing
+        // 2. Ensure content fills the window area (fixes padding issues)
+        let mut style_mask: NSWindowStyleMask = ns_window.styleMask();
+        style_mask.insert(NSWindowStyleMask::NSFullSizeContentViewWindowMask);
+        ns_window.setStyleMask_(style_mask);
+
+        // 3. Access the WKWebView and disable its background drawing
         let content_view: id = ns_window.contentView();
         let subviews: id = msg_send![content_view, subviews];
         let count: usize = msg_send![subviews, count];
@@ -710,11 +715,11 @@ fn setup_macos_window(ns_window: cocoa::base::id) {
             let _: () = msg_send![webview, setValue:no_num forKey:draws_bg_key];
         }
 
-        // 3. Hide the titlebar completely
+        // 4. Hide the titlebar completely
         ns_window.setTitlebarAppearsTransparent_(YES);
         ns_window.setTitleVisibility_(cocoa::appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
 
-        // 4. Ensure shadow is enabled
-        ns_window.setHasShadow_(YES);
+        // 5. Disable native shadow to remove the black border artifact
+        ns_window.setHasShadow_(NO);
     }
 }
