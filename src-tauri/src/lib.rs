@@ -249,10 +249,10 @@ pub fn run_app() {
             {
                 // Set activation policy to Accessory to hide dock icon and menu bar
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                // Apply custom native window styling
+                crate::setup_macos_window(&win);
                 // Set window level to NSStatusWindowLevel (25) to be above the Dock
                 crate::set_window_level(&win, 25);
-                // Set background color to dark to fix white corners when transparency is disabled
-                crate::set_window_background_color(&win, 0.05, 0.05, 0.05, 1.0);
             }
 
             // Load saved hotkey from database or use default
@@ -676,16 +676,35 @@ fn set_window_level(window: &tauri::WebviewWindow, level: i64) {
 }
 
 #[cfg(target_os = "macos")]
-fn set_window_background_color(window: &tauri::WebviewWindow, r: f64, g: f64, b: f64, a: f64) {
-    use cocoa::appkit::NSWindow;
-    use cocoa::base::id;
+fn setup_macos_window(window: &tauri::WebviewWindow) {
+    use cocoa::appkit::{NSWindow, NSWindowStyleMask};
+    use cocoa::base::{id, NO};
     use objc::{msg_send, sel, sel_impl, class};
 
     if let Ok(handle) = window.ns_window() {
         unsafe {
             let ns_window: id = handle as id;
-            let color: id = msg_send![class!(NSColor), colorWithRed:r green:g blue:b alpha:a];
+            
+            // 1. Set background color to match dark theme (#1E1E1E roughly 0.12)
+            let color: id = msg_send![class!(NSColor), colorWithRed:0.12 green:0.12 blue:0.12 alpha:1.0];
             ns_window.setBackgroundColor_(color);
+
+            // 2. Disable opacity to allow the color to take effect properly
+            ns_window.setOpaque_(NO);
+
+            // 3. Ensure the window is borderless but still has proper sizing behavior
+            // NSWindowStyleMaskBorderless = 0
+            // NSWindowStyleMaskFullSizeContentView = 1 << 15
+            let mut style_mask: NSWindowStyleMask = ns_window.styleMask();
+            style_mask.insert(NSWindowStyleMask::NSFullSizeContentViewWindowMask);
+            ns_window.setStyleMask_(style_mask);
+
+            // 4. Hide the titlebar completely
+            ns_window.setTitlebarAppearsTransparent_(cocoa::base::YES);
+            ns_window.setTitleVisibility_(cocoa::appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+
+            // 5. Remove standard shadow if it's causing white glow
+            ns_window.setHasShadow_(NO);
         }
     }
 }
