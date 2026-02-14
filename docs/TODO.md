@@ -7,6 +7,6 @@ macOS:
 [x] add round cornors for setting windows, make it more native looks and feel
 [x] grab application name where the clipboard content comes from, and its icon, then set them on the top of clip card
 [x] In the list page, the system should support using the left and right arrow keys to select cards. Additionally, it should support the Enter key to paste the currently selected content into the active window, which should function exactly like a double-click.
-[ ] Support i18n, multi-language. For the first version, we should support English and Chinese.And add an option in the settings page to allow the user to choose their preferred language.
+[x] Support i18n, multi-language. For the first version, we should support English and Chinese.And add an option in the settings page to allow the user to choose their preferred language.
 [ ] make main window (clip card list window) more native looks and feel
 [ ] submit to app store
