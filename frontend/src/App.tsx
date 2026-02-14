@@ -13,6 +13,7 @@ import { AiResultDialog } from './components/AiResultDialog';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useTheme } from './hooks/useTheme';
 import { useLanguage } from './hooks/useLanguage';
+import { useTranslation } from 'react-i18next';
 import { Toaster, toast } from 'sonner';
 import { LAYOUT } from './constants';
 import { isMacOS } from './utils/platform';
@@ -58,6 +59,7 @@ function App() {
 
   const effectiveTheme = useTheme(theme);
   useLanguage(settings?.language);
+  const { t } = useTranslation();
 
   const appWindow = getCurrentWindow();
   const selectedFolderRef = useRef(selectedFolder);
@@ -325,10 +327,10 @@ function App() {
       // Refresh counts
       loadFolders();
       refreshTotalCount();
-      toast.success('Clip deleted');
+      toast.success(t('notifications.clipDeleted'));
     } catch (error) {
       console.error('Failed to delete clip:', error);
-      toast.error('Failed to delete clip');
+      toast.error(t('notifications.clipDeleteFailed'));
     }
   };
 
@@ -393,10 +395,10 @@ function App() {
       // Note: If 'paste_clip' does Ctrl+V, then this "Copy" button actually Pastes.
       // Refactoring that is out of scope unless necessary.
 
-      toast.success('Copied to clipboard');
+      toast.success(t('common.copied'));
     } catch (error) {
       console.error('Failed to copy clip:', error);
-      toast.error('Failed to copy');
+      toast.error(t('notifications.copyFailed'));
     }
   };
 
@@ -505,7 +507,7 @@ function App() {
 
   const handleAiAction = async (clipId: string, action: string, title: string) => {
     try {
-      const toastId = toast.loading('Processing with AI...');
+      const toastId = toast.loading(t('ai.processing'));
       const result = await invoke<string>('ai_process_clip', { clipId, action });
       toast.dismiss(toastId);
       setAiResult({
@@ -516,7 +518,7 @@ function App() {
     } catch (error) {
       toast.dismiss();
       console.error('AI Processing Failed:', error);
-      toast.error(`AI Error: ${error}`);
+      toast.error(t('ai.error', { error: String(error) }));
     }
   };
 
@@ -541,19 +543,19 @@ function App() {
   const handleCreateOrRenameFolder = async (name: string) => {
     if (folderModalMode === 'create') {
       await handleCreateFolder(name);
-      toast.success(`Folder "${name}" created`);
+      toast.success(t('folders.folderCreated', { name }));
       setShowAddFolderModal(false);
       setNewFolderName('');
     } else if (folderModalMode === 'rename' && editingFolderId) {
       try {
         await invoke('rename_folder', { id: editingFolderId, name });
         await loadFolders();
-        toast.success(`Renamed to "${name}"`);
+        toast.success(t('folders.folderRenamed', { name }));
         setShowAddFolderModal(false);
         setNewFolderName('');
       } catch (error) {
         console.error('Failed to rename folder:', error);
-        toast.error('Failed to rename folder');
+        toast.error(t('notifications.folderRenameFailed'));
       }
     }
   };
@@ -567,10 +569,10 @@ function App() {
       }
       await loadFolders();
       refreshTotalCount();
-      toast.success('Folder deleted');
+      toast.success(t('folders.folderDeleted'));
     } catch (error) {
       console.error('Failed to delete folder:', error);
-      toast.error('Failed to delete folder');
+      toast.error(t('notifications.folderDeleteFailed'));
     }
   };
 
@@ -612,34 +614,34 @@ function App() {
                 contextMenu.type === 'card'
                   ? [
                       {
-                        label: `${settings?.ai_title_summarize || 'Summarize'} (AI)`,
+                        label: `${settings?.ai_title_summarize || t('contextMenu.summarize')}`,
                         onClick: () =>
-                          handleAiAction(contextMenu.itemId, 'summarize', 'AI Summary'),
+                          handleAiAction(contextMenu.itemId, 'summarize', t('ai.summary')),
                       },
                       {
-                        label: `${settings?.ai_title_translate || 'Translate'} (AI)`,
+                        label: `${settings?.ai_title_translate || t('contextMenu.translate')}`,
                         onClick: () =>
-                          handleAiAction(contextMenu.itemId, 'translate', 'AI Translation'),
+                          handleAiAction(contextMenu.itemId, 'translate', t('ai.translation')),
                       },
                       {
-                        label: `${settings?.ai_title_explain_code || 'Explain Code'} (AI)`,
+                        label: `${settings?.ai_title_explain_code || t('contextMenu.explainCode')}`,
                         onClick: () =>
-                          handleAiAction(contextMenu.itemId, 'explain_code', 'Code Explanation'),
+                          handleAiAction(contextMenu.itemId, 'explain_code', t('ai.codeExplanation')),
                       },
                       {
-                        label: `${settings?.ai_title_fix_grammar || 'Fix Grammar'} (AI)`,
+                        label: `${settings?.ai_title_fix_grammar || t('contextMenu.fixGrammar')}`,
                         onClick: () =>
-                          handleAiAction(contextMenu.itemId, 'fix_grammar', 'Grammar Check'),
+                          handleAiAction(contextMenu.itemId, 'fix_grammar', t('ai.grammarCheck')),
                       },
                       {
-                        label: 'Delete',
+                        label: t('contextMenu.delete'),
                         danger: true,
                         onClick: () => handleDelete(contextMenu.itemId),
                       },
                     ]
                   : [
                       {
-                        label: 'Rename',
+                        label: t('contextMenu.rename'),
                         onClick: () => {
                           setFolderModalMode('rename');
                           setEditingFolderId(contextMenu.itemId);
@@ -649,7 +651,7 @@ function App() {
                         },
                       },
                       {
-                        label: 'Delete',
+                        label: t('contextMenu.delete'),
                         danger: true,
                         onClick: () => handleDeleteFolder(contextMenu.itemId),
                       },

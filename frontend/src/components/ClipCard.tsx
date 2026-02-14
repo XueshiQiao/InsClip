@@ -1,6 +1,7 @@
 import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
 import { useMemo, memo, useState, forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LAYOUT, TOTAL_COLUMN_WIDTH, PREVIEW_CHAR_LIMIT } from '../constants';
 import { Copy, Check } from 'lucide-react';
 
@@ -23,6 +24,7 @@ export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function 
   onDragStart,
   onContextMenu,
 }: ClipCardProps, ref) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
@@ -145,8 +147,8 @@ export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function 
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-card via-card/100 to-transparent/0 px-3 py-1.5">
           <span className="text-[11px] font-medium text-muted-foreground/50">
             {clip.clip_type === 'image'
-              ? `Image (${Math.round((clip.content.length * 0.75) / 1024)}KB)`
-              : `${clip.content.length} characters`}
+              ? t('clipList.imageSize', { size: Math.round((clip.content.length * 0.75) / 1024) })
+              : t('clipList.textLength', { count: clip.content.length })}
           </span>
         </div>
       </div>

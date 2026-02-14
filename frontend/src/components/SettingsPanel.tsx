@@ -115,7 +115,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
   useTheme(settings.theme);
 
   // i18n hook
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
 
   // Generic handler for immediate settings updates
   const updateSettings = async (updates: Partial<Settings>) => {
@@ -425,7 +425,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                 )}
               >
                 <SettingsIcon size={16} />
-                General
+                {t('settings.general')}
               </button>
               <button
                 onClick={() => setActiveTab('ai')}
@@ -437,7 +437,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                 )}
               >
                 <BrainCircuit size={16} />
-                AI Processing
+                {t('settings.ai')}
               </button>
               <button
                 onClick={() => setActiveTab('folders')}
@@ -449,7 +449,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                 )}
               >
                 <FolderIcon size={16} />
-                Folders
+                {t('settings.folders')}
               </button>
             </div>
           </div>
@@ -468,7 +468,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-3">
                         <label className="block">
-                          <span className="text-sm font-medium">Theme</span>
+                          <span className="text-sm font-medium">{t('settings.theme')}</span>
                         </label>
                         <select
                           value={settings.theme}
@@ -483,7 +483,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                       <div className="space-y-3">
                         <label className="block">
-                          <span className="text-sm font-medium">Language</span>
+                          <span className="text-sm font-medium">{t('settings.language')}</span>
                         </label>
                         <select
                           value={settings.language || 'en'}
@@ -499,7 +499,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                     {!isMacOS() && (
                       <div className="space-y-3">
                         <label className="block">
-                          <span className="text-sm font-medium">Window Effect</span>
+                          <span className="text-sm font-medium">{t('settings.windowEffect')}</span>
                         </label>
                         <select
                           value={settings.mica_effect || 'clear'}
@@ -515,9 +515,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="flex items-center justify-between rounded-lg border border-border bg-accent/20 p-3">
                       <div>
-                        <span className="text-sm font-medium">{isMacOS() ? 'Launch at Login' : 'Startup with Windows'}</span>
+                        <span className="text-sm font-medium">{isMacOS() ? t('settings.launchAtLogin') : t('settings.startupWithWindows')}</span>
                         <p className="text-xs text-muted-foreground">
-                          {isMacOS() ? 'Automatically start when you log in' : 'Automatically start when Windows boots'}
+                          {isMacOS() ? t('settings.launchAtLoginDesc') : t('settings.startupWithWindowsDesc')}
                         </p>
                       </div>
                       <button
@@ -534,9 +534,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="flex items-center justify-between rounded-lg border border-border bg-accent/20 p-3">
                       <div>
-                        <span className="text-sm font-medium">Auto Paste</span>
+                        <span className="text-sm font-medium">{t('settings.autoPaste')}</span>
                         <p className="text-xs text-muted-foreground">
-                          Automatically paste when selecting a clip
+                          {t('settings.autoPasteDesc')}
                         </p>
                       </div>
                       <button
@@ -551,9 +551,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="flex items-center justify-between rounded-lg border border-border bg-accent/20 p-3">
                       <div>
-                        <span className="text-sm font-medium">Ignore Ghost Clips</span>
+                        <span className="text-sm font-medium">{t('settings.ignoreGhostClips')}</span>
                         <p className="text-xs text-muted-foreground">
-                          Ignore content from unknown background apps
+                          {t('settings.ignoreGhostClipsDesc')}
                         </p>
                       </div>
                       <button
@@ -573,8 +573,8 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                     <h3 className="text-sm font-medium text-muted-foreground">Shortcuts</h3>
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">Global Hotkey</span>
-                        <p className="text-xs text-muted-foreground">Toggle the clipboard window</p>
+                        <span className="text-sm font-medium">{t('settings.hotkey')}</span>
+                        <p className="text-xs text-muted-foreground">{t('settings.hotkeyDesc')}</p>
                       </label>
                       {isRecordingMode ? (
                         <div className="space-y-2">
@@ -584,7 +584,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                                 ? formatHotkey(shortcut)
                                 : savedShortcut.length > 0
                                   ? formatHotkey(savedShortcut)
-                                  : 'Press keys...'}
+                                  : t('settings.hotkeyRecording')}
                             </span>
                           </div>
                           <div className="flex gap-2">
@@ -593,13 +593,13 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                               disabled={savedShortcut.length === 0}
                               className="rounded bg-primary px-3 py-1 text-xs text-primary-foreground disabled:opacity-50"
                             >
-                              Save
+                              {t('common.save')}
                             </button>
                             <button
                               onClick={handleCancelRecording}
                               className="rounded bg-muted px-3 py-1 text-xs text-muted-foreground"
                             >
-                              Cancel
+                              {t('common.cancel')}
                             </button>
                           </div>
                         </div>
@@ -622,9 +622,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                     </h3>
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">Ignored Applications</span>
+                        <span className="text-sm font-medium">{t('settings.ignoredApps')}</span>
                         <p className="text-xs text-muted-foreground">
-                          Prevent recording from specific apps (filename or path).
+                          {t('settings.ignoredAppsDesc')}
                         </p>
                       </label>
 
@@ -719,7 +719,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">Provider</span>
+                        <span className="text-sm font-medium">{t('settings.provider')}</span>
                       </label>
                       <select
                         value={settings.ai_provider || 'openai'}
@@ -750,7 +750,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">API Key</span>
+                        <span className="text-sm font-medium">{t('settings.apiKey')}</span>
                       </label>
                       <div className="relative">
                         <input
@@ -773,7 +773,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">Model</span>
+                        <span className="text-sm font-medium">{t('settings.model')}</span>
                       </label>
                       <input
                         type="text"
@@ -787,10 +787,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                     <div className="space-y-3">
                       <label className="block">
-                        <span className="text-sm font-medium">Base URL (Optional)</span>
-                        <p className="text-xs text-muted-foreground">
-                          For local models or custom endpoints
-                        </p>
+                        <span className="text-sm font-medium">{t('settings.baseUrl')}</span>
                       </label>
                       <input
                         type="text"
