@@ -9,9 +9,11 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Environment & Entitlements' (Protocol in workflow.md) (df38d57)
 
 ## Phase 2: Assets & Metadata
-- [~] Task: Generate compliant App Store icon set (1024x1024 and standard sizes)
-- [ ] Task: Review and update `tauri.conf.json` for App Store specific bundle settings
-- [ ] Task: Prepare high-resolution screenshots for both Light and Dark modes
+- [x] Task: Generate compliant App Store icon set (1024x1024 and standard sizes) (e8b3706)
+  *Note: Current icon.icns contains 1024x1024 variant. icon_light_green_gradient.png (1024x1024) is also available.*
+- [x] Task: Review and update `tauri.conf.json` for App Store specific bundle settings (e8b3706)
+  *Note: Created tauri.appstore.conf.json with App Store specific overrides.*
+- [~] Task: Prepare high-resolution screenshots for both Light and Dark modes
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Assets & Metadata' (Protocol in workflow.md)
 
 ## Phase 3: Build & Validation
