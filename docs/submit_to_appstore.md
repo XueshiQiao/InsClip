@@ -19,7 +19,12 @@ The following changes were made to ensure compatibility with the macOS App Sandb
 ### C. Source App Detection
 - **Status**: Already uses native Cocoa `NSWorkspace` APIs. Verified as sandbox-compatible.
 
-### D. Conditional Compilation
+### D. Auto-Paste (Accessibility API)
+- **Status**: Implemented via `AXIsProcessTrusted` and `CGEvent`.
+- **Sandbox Compliance**: Instead of using prohibited `osascript` calls, the app now uses the official Apple-recommended Accessibility API path. 
+- **User Flow**: If permissions are missing, a banner appears in Settings guiding the user to *System Settings > Privacy & Security > Accessibility*. Once granted, the app can simulate the `Cmd+V` keystroke from within the sandbox.
+
+### E. Conditional Compilation
 - Added an `app-store` feature flag in `Cargo.toml`.
 - When building with `--features app-store`:
     - `tauri-plugin-updater` is disabled (App Store handles updates).

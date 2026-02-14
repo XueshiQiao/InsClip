@@ -105,6 +105,7 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
   const [localApiKey, setLocalApiKey] = useState(initialSettings.ai_api_key || '');
   const [localBaseUrl, setLocalBaseUrl] = useState(initialSettings.ai_base_url || '');
   const [localModel, setLocalModel] = useState(initialSettings.ai_model || 'gpt-3.5-turbo');
+  const [isAccessibilityEnabled, setIsAccessibilityEnabled] = useState(false);
 
   // Folder Management State
   const [folders, setFolders] = useState<FolderItem[]>([]);
@@ -222,6 +223,22 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
     invoke<string[]>('get_ignored_apps').then(setIgnoredApps).catch(console.error);
     getVersion().then(setAppVersion).catch(console.error);
     loadFolders();
+
+    // Check accessibility permissions on macOS
+    if (isMacOS()) {
+      const checkPermissions = async () => {
+        try {
+          const enabled = await invoke<boolean>('check_accessibility_permissions');
+          setIsAccessibilityEnabled(enabled);
+        } catch (e) {
+          console.error('Failed to check accessibility permissions', e);
+        }
+      };
+      
+      checkPermissions();
+      const interval = setInterval(checkPermissions, 2000);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   const handleAddIgnoredApp = async () => {
@@ -531,6 +548,23 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         />
                       </button>
                     </div>
+
+                    {isMacOS() && !isAccessibilityEnabled && (
+                      <div className="flex items-center justify-between rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-3">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-yellow-600 dark:text-yellow-500">{t('settings.accessibilityPermission')}</span>
+                          <p className="text-xs text-muted-foreground">
+                            {t('settings.accessibilityPermissionDesc')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => invoke('request_accessibility_permissions')}
+                          className="rounded bg-yellow-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-yellow-600"
+                        >
+                          {t('settings.grantPermission')}
+                        </button>
+                      </div>
+                    )}
 
                     <div className="flex items-center justify-between rounded-lg border border-border bg-accent/20 p-3">
                       <div>

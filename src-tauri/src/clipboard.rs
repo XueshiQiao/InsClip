@@ -572,6 +572,14 @@ pub fn send_paste_input() {
     use core_graphics::event::{CGEvent, CGEventTapLocation, CGEventFlags, CGKeyCode};
     use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
+    #[cfg(feature = "app-store")]
+    {
+        if !crate::source_app_macos::is_accessibility_enabled() {
+            log::warn!("CLIPBOARD: Auto-paste failed because Accessibility permissions are not granted.");
+            return;
+        }
+    }
+
     // Give a brief delay for focus to switch
     std::thread::sleep(std::time::Duration::from_millis(20));
 

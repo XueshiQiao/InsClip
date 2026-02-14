@@ -245,6 +245,33 @@ fn nsimage_to_base64_png(source_image: id, size: f64) -> Option<String> {
     }
 }
 
+/// Checks if the current process is a "trusted" accessibility client.
+pub fn is_accessibility_enabled() -> bool {
+    // AXIsProcessTrustedWithOptions is available on macOS 10.9+
+    // Passing nil/null as options means we don't want to show the system prompt immediately
+    // (we'll handle the prompting via our own UI or by opening settings).
+    objc_is_process_trusted()
+}
+
+/// Opens the System Settings to the Accessibility > Input Monitoring or Accessibility page.
+pub fn open_accessibility_settings() {
+    unsafe {
+        let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
+        let url_string = cocoa::foundation::NSString::alloc(nil)
+            .init_str("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+        let url: id = msg_send![class!(NSURL), URLWithString: url_string];
+        let _: () = msg_send![workspace, openURL: url];
+    }
+}
+
+extern "C" {
+    fn AXIsProcessTrusted() -> bool;
+}
+
+fn objc_is_process_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() }
+}
+
 trait NSImageFocusExt {
     unsafe fn lockFocus(self);
     unsafe fn unlockFocus(self);
@@ -268,6 +295,12 @@ mod tests {
         let (name, _icon, bundle_id, _full_path, _explicit) = get_frontmost_app_info();
         println!("App name: {:?}", name);
         println!("Bundle ID: {:?}", bundle_id);
+    }
+
+    #[test]
+    fn test_is_accessibility_enabled() {
+        let enabled = is_accessibility_enabled();
+        println!("Accessibility enabled: {}", enabled);
     }
 
     #[test]

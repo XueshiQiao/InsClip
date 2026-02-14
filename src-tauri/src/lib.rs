@@ -323,7 +323,9 @@ pub fn run_app() {
             commands::get_layout_config,
             commands::test_log,
             commands::ai_process_clip,
-            commands::focus_window
+            commands::focus_window,
+            commands::check_accessibility_permissions,
+            commands::request_accessibility_permissions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

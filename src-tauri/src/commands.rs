@@ -525,7 +525,7 @@ pub async fn get_settings(_app: AppHandle, db: tauri::State<'_, Arc<Database>>) 
         "auto_paste": true,
         "ignore_ghost_clips": false
     });
-    
+
     // ... (rest of get_settings until autostart check)
 
     if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'mica_effect'"#)
@@ -825,7 +825,7 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: taur
             use smappservice_rs::{AppService, ServiceType, ServiceStatus};
             let app_service = AppService::new(ServiceType::MainApp);
             let current_state = matches!(app_service.status(), ServiceStatus::Enabled);
-            
+
             if startup != current_state {
                 if startup {
                     if let Err(e) = app_service.register() {
@@ -1000,4 +1000,29 @@ pub fn get_layout_config() -> serde_json::Value {
     serde_json::json!({
         "window_height": crate::constants::WINDOW_HEIGHT,
     })
+}
+
+#[tauri::command]
+pub async fn check_accessibility_permissions() -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        Ok(crate::source_app_macos::is_accessibility_enabled())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(true)
+    }
+}
+
+#[tauri::command]
+pub async fn request_accessibility_permissions() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::source_app_macos::open_accessibility_settings();
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
 }
