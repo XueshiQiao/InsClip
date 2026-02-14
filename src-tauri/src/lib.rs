@@ -7,6 +7,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Manager,
 };
+#[cfg(not(feature = "app-store"))]
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_aptabase::EventTracker;
@@ -31,8 +32,6 @@ use models::get_runtime;
 use database::Database;
 
 pub fn run_app() {
-    let builder = tauri::Builder::default();
-
     let data_dir = get_data_dir();
     fs::create_dir_all(&data_dir).ok();
     let db_path = data_dir.join("paste_paw.db");
@@ -80,6 +79,16 @@ pub fn run_app() {
         ]);
     }
 
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(not(feature = "app-store"))]
+    {
+        builder = builder
+            .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
+            .plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
     builder
         .plugin(log_builder.build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -95,10 +104,8 @@ pub fn run_app() {
         }))
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_x::init())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-2920723583").build())
         .manage(db_arc.clone())

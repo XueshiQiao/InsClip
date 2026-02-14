@@ -258,3 +258,17 @@ impl NSImageFocusExt for id {
         let _: () = msg_send![self, unlockFocus];
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_frontmost_app_info() {
+        let (name, icon, bundle_id, full_path, explicit) = get_frontmost_app_info();
+        println!("App name: {:?}", name);
+        println!("Bundle ID: {:?}", bundle_id);
+        // On CI or during build, frontmostApplication might be nil or some system process
+        // but we just want to see if it doesn't crash and returns something if possible.
+    }
+}

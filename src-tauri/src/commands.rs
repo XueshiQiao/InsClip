@@ -509,7 +509,8 @@ pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<Fold
 }
 
 #[tauri::command]
-pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -> Result<serde_json::Value, String> {
+pub async fn get_settings(_app: AppHandle, db: tauri::State<'_, Arc<Database>>) -> Result<serde_json::Value, String> {
+    #[cfg(not(feature = "app-store"))]
     use tauri_plugin_autostart::ManagerExt;
     let pool = &db.pool;
 
@@ -524,6 +525,8 @@ pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -
         "auto_paste": true,
         "ignore_ghost_clips": false
     });
+    
+    // ... (rest of get_settings until autostart check)
 
     if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'mica_effect'"#)
         .fetch_optional(pool).await.map_err(|e| e.to_string())
@@ -619,11 +622,14 @@ pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -
         .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_title_fix_grammar"] = serde_json::json!(value); }
 
     // Check actual autostart status
-    if let Ok(is_enabled) = app.autolaunch().is_enabled() {
-        settings["startup_with_windows"] = serde_json::json!(is_enabled);
-        log::info!("autostart enabled: {}", is_enabled);
-    } else {
-        log::info!("autostart not enabled");
+    #[cfg(not(feature = "app-store"))]
+    {
+        if let Ok(is_enabled) = app.autolaunch().is_enabled() {
+            settings["startup_with_windows"] = serde_json::json!(is_enabled);
+            log::info!("autostart enabled: {}", is_enabled);
+        } else {
+            log::info!("autostart not enabled");
+        }
     }
 
     Ok(settings)
@@ -631,6 +637,7 @@ pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -
 
 #[tauri::command]
 pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
+    #[cfg(not(feature = "app-store"))]
     use tauri_plugin_autostart::ManagerExt;
     let pool = &db.pool;
 
@@ -785,18 +792,21 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: taur
             .execute(pool).await.ok();
     }
 
-    if let Some(startup) = settings.get("startup_with_windows").and_then(|v| v.as_bool()) {
-        let current_state = app.autolaunch().is_enabled().unwrap_or(false);
-        if startup != current_state {
-             if startup {
-                 if let Err(e) = app.autolaunch().enable() {
-                     log::warn!("Failed to enable autostart: {}", e);
-                 }
-             } else {
-                 if let Err(e) = app.autolaunch().disable() {
-                     log::warn!("Failed to disable autostart: {}", e);
-                 }
-             }
+    #[cfg(not(feature = "app-store"))]
+    {
+        if let Some(startup) = settings.get("startup_with_windows").and_then(|v| v.as_bool()) {
+            let current_state = app.autolaunch().is_enabled().unwrap_or(false);
+            if startup != current_state {
+                if startup {
+                    if let Err(e) = app.autolaunch().enable() {
+                        log::warn!("Failed to enable autostart: {}", e);
+                    }
+                } else {
+                    if let Err(e) = app.autolaunch().disable() {
+                        log::warn!("Failed to disable autostart: {}", e);
+                    }
+                }
+            }
         }
     }
 
