@@ -251,6 +251,8 @@ pub fn run_app() {
                 app.set_activation_policy(tauri::ActivationPolicy::Accessory);
                 // Set window level to NSStatusWindowLevel (25) to be above the Dock
                 crate::set_window_level(&win, 25);
+                // Set background color to dark to fix white corners when transparency is disabled
+                crate::set_window_background_color(&win, 0.05, 0.05, 0.05, 1.0);
             }
 
             // Load saved hotkey from database or use default
@@ -669,6 +671,21 @@ fn set_window_level(window: &tauri::WebviewWindow, level: i64) {
         unsafe {
             let ns_window: id = handle as id;
             ns_window.setLevel_(level);
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_window_background_color(window: &tauri::WebviewWindow, r: f64, g: f64, b: f64, a: f64) {
+    use cocoa::appkit::NSWindow;
+    use cocoa::base::id;
+    use objc::{msg_send, sel, sel_impl, class};
+
+    if let Ok(handle) = window.ns_window() {
+        unsafe {
+            let ns_window: id = handle as id;
+            let color: id = msg_send![class!(NSColor), colorWithRed:r green:g blue:b alpha:a];
+            ns_window.setBackgroundColor_(color);
         }
     }
 }
