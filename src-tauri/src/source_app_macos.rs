@@ -265,10 +265,18 @@ mod tests {
 
     #[test]
     fn test_get_frontmost_app_info() {
-        let (name, icon, bundle_id, full_path, explicit) = get_frontmost_app_info();
+        let (name, _icon, bundle_id, _full_path, _explicit) = get_frontmost_app_info();
         println!("App name: {:?}", name);
         println!("Bundle ID: {:?}", bundle_id);
-        // On CI or during build, frontmostApplication might be nil or some system process
-        // but we just want to see if it doesn't crash and returns something if possible.
+    }
+
+    #[test]
+    #[cfg(feature = "app-store")]
+    fn test_smappservice_status() {
+        use smappservice_rs::{AppService, ServiceType};
+        let app_service = AppService::new(ServiceType::MainApp);
+        let status = app_service.status();
+        println!("SMAppService status: {:?}", status);
+        // We don't assert Registered because it won't be in a test environment
     }
 }

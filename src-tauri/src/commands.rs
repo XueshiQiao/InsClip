@@ -632,6 +632,15 @@ pub async fn get_settings(_app: AppHandle, db: tauri::State<'_, Arc<Database>>) 
         }
     }
 
+    #[cfg(all(feature = "app-store", target_os = "macos"))]
+    {
+        use smappservice_rs::{AppService, ServiceType, ServiceStatus};
+        let app_service = AppService::new(ServiceType::MainApp);
+        let is_enabled = matches!(app_service.status(), ServiceStatus::Enabled);
+        settings["startup_with_windows"] = serde_json::json!(is_enabled);
+        log::info!("autostart (SMAppService) enabled: {}", is_enabled);
+    }
+
     Ok(settings)
 }
 
@@ -810,6 +819,29 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: taur
         }
     }
 
+    #[cfg(all(feature = "app-store", target_os = "macos"))]
+    {
+        if let Some(startup) = settings.get("startup_with_windows").and_then(|v| v.as_bool()) {
+            use smappservice_rs::{AppService, ServiceType, ServiceStatus};
+            let app_service = AppService::new(ServiceType::MainApp);
+            let current_state = matches!(app_service.status(), ServiceStatus::Enabled);
+            
+            if startup != current_state {
+                if startup {
+                    if let Err(e) = app_service.register() {
+                        log::error!("Failed to register SMAppService: {}", e);
+                        return Err(format!("Failed to enable autostart: {}", e));
+                    }
+                } else {
+                    if let Err(e) = app_service.unregister() {
+                        log::error!("Failed to unregister SMAppService: {}", e);
+                        return Err(format!("Failed to disable autostart: {}", e));
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -948,47 +980,18 @@ pub async fn get_ignored_apps(db: tauri::State<'_, Arc<Database>>) -> Result<Vec
 }
 
 #[tauri::command]
-pub async fn pick_file() -> Result<String, String> {
-    use std::process::Command;
-    #[cfg(target_os = "windows")]
-    {
-        let ps_script = "Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'Executables (*.exe)|*.exe|All files (*.*)|*.*'; $null = $d.ShowDialog(); $d.FileName";
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-Command", ps_script])
-            .output()
-            .map_err(|e| e.to_string())?;
+pub async fn pick_file(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_dialog::DialogExt;
 
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if path.is_empty() {
-                return Err("No file selected".to_string());
-            }
-            Ok(path)
-        } else {
-            Err("Failed to open file picker".to_string())
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let script = r#"POSIX path of (choose file of type {"app"} with prompt "Select an application")"#;
-        let output = Command::new("osascript")
-            .args(["-e", script])
-            .output()
-            .map_err(|e| e.to_string())?;
+    let file_path = app
+        .dialog()
+        .file()
+        .add_filter("Executables", &["exe", "app"])
+        .blocking_pick_file();
 
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if path.is_empty() {
-                return Err("No file selected".to_string());
-            }
-            Ok(path)
-        } else {
-            Err("No file selected".to_string())
-        }
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    {
-        Err("Not supported on this OS".to_string())
+    match file_path {
+        Some(path) => Ok(path.to_string()),
+        None => Err("No file selected".to_string()),
     }
 }
 
