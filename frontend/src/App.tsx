@@ -314,12 +314,6 @@ function App() {
     };
   }, [refreshCurrentFolder, loadFolders, refreshTotalCount]);
 
-  useKeyboard({
-    onClose: () => appWindow.hide(),
-    onSearch: () => setShowSearch(true),
-    onDelete: () => handleDelete(selectedClipId),
-  });
-
   const handleDelete = async (clipId: string | null) => {
     if (!clipId) return;
     try {
@@ -403,6 +397,52 @@ function App() {
       toast.error('Failed to copy');
     }
   };
+
+  // Keyboard navigation handlers
+  const handleNavigateLeft = useCallback(() => {
+    if (clips.length === 0) return;
+
+    if (!selectedClipId) {
+      // No selection, select the first clip
+      setSelectedClipId(clips[0].id);
+      return;
+    }
+
+    const currentIndex = clips.findIndex(c => c.id === selectedClipId);
+    if (currentIndex > 0) {
+      setSelectedClipId(clips[currentIndex - 1].id);
+    }
+  }, [clips, selectedClipId]);
+
+  const handleNavigateRight = useCallback(() => {
+    if (clips.length === 0) return;
+
+    if (!selectedClipId) {
+      // No selection, select the first clip
+      setSelectedClipId(clips[0].id);
+      return;
+    }
+
+    const currentIndex = clips.findIndex(c => c.id === selectedClipId);
+    if (currentIndex < clips.length - 1) {
+      setSelectedClipId(clips[currentIndex + 1].id);
+    }
+  }, [clips, selectedClipId]);
+
+  const handlePasteSelected = useCallback(() => {
+    if (selectedClipId) {
+      handlePaste(selectedClipId);
+    }
+  }, [selectedClipId, handlePaste]);
+
+  useKeyboard({
+    onClose: () => appWindow.hide(),
+    onSearch: () => setShowSearch(true),
+    onDelete: () => handleDelete(selectedClipId),
+    onNavigateLeft: handleNavigateLeft,
+    onNavigateRight: handleNavigateRight,
+    onPaste: handlePasteSelected,
+  });
 
   const handleCreateFolder = async (name: string) => {
     try {

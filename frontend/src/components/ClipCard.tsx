@@ -1,6 +1,6 @@
 import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
-import { useMemo, memo, useState } from 'react';
+import { useMemo, memo, useState, forwardRef } from 'react';
 import { LAYOUT, TOTAL_COLUMN_WIDTH, PREVIEW_CHAR_LIMIT } from '../constants';
 import { Copy, Check } from 'lucide-react';
 
@@ -14,7 +14,7 @@ interface ClipCardProps {
   onContextMenu?: (e: React.MouseEvent) => void;
 }
 
-export const ClipCard = memo(function ClipCard({
+export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function ClipCard({
   clip,
   isSelected,
   onSelect,
@@ -22,7 +22,7 @@ export const ClipCard = memo(function ClipCard({
   onCopy,
   onDragStart,
   onContextMenu,
-}: ClipCardProps) {
+}: ClipCardProps, ref) {
   const [copied, setCopied] = useState(false);
   const title = clip.source_app || clip.clip_type.toUpperCase();
 
@@ -88,6 +88,7 @@ export const ClipCard = memo(function ClipCard({
 
   return (
     <div
+      ref={ref}
       style={{
         width: TOTAL_COLUMN_WIDTH - LAYOUT.CARD_GAP,
         height: 'calc(100% - 32px)',
@@ -151,4 +152,4 @@ export const ClipCard = memo(function ClipCard({
       </div>
     </div>
   );
-});
+}));

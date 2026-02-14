@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { ClipboardItem } from '../types';
 import { ClipCard } from './ClipCard';
+import { TOTAL_COLUMN_WIDTH } from '../constants';
 
 interface ClipListProps {
   clips: ClipboardItem[];
@@ -29,6 +30,52 @@ export function ClipList({
   onCardContextMenu,
 }: ClipListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Scroll selected card into view when selection changes
+  useEffect(() => {
+    if (selectedClipId && containerRef.current) {
+      const selectedCard = cardRefs.current.get(selectedClipId);
+      const container = containerRef.current;
+
+      if (selectedCard) {
+        const cardLeft = selectedCard.offsetLeft;
+        const cardWidth = selectedCard.offsetWidth;
+        const scrollLeft = container.scrollLeft;
+        const containerWidth = container.clientWidth;
+
+        // Offset to reveal about 1/3 of adjacent card
+        const peekOffset = TOTAL_COLUMN_WIDTH / 3;
+
+        // Card position relative to current scroll
+        const cardStart = cardLeft;
+        const cardEnd = cardLeft + cardWidth;
+        const visibleStart = scrollLeft;
+        const visibleEnd = scrollLeft + containerWidth;
+
+        // Maximum scrollable position
+        const maxScroll = container.scrollWidth - containerWidth;
+
+        let targetScroll = scrollLeft;
+
+        // Card is beyond right edge - scroll to show it plus peek of next card
+        if (cardEnd > visibleEnd) {
+          targetScroll = cardEnd - containerWidth + peekOffset;
+        }
+        // Card is beyond left edge - scroll to show it plus peek of previous card
+        else if (cardStart < visibleStart) {
+          targetScroll = cardStart - peekOffset;
+        }
+
+        if (targetScroll !== scrollLeft) {
+          container.scrollTo({
+            left: Math.min(maxScroll, Math.max(0, targetScroll)), // Clamp to valid scroll range
+            behavior: 'smooth',
+          });
+        }
+      }
+    }
+  }, [selectedClipId]);
 
   // Native onScroll handler for infinite scroll
   const handleScroll = () => {
@@ -87,6 +134,13 @@ export function ClipList({
       {clips.map((clip) => (
         <ClipCard
           key={clip.id}
+          ref={(el) => {
+            if (el) {
+              cardRefs.current.set(clip.id, el);
+            } else {
+              cardRefs.current.delete(clip.id);
+            }
+          }}
           clip={clip}
           isSelected={selectedClipId === clip.id}
           onSelect={() => onSelectClip(clip.id)}
