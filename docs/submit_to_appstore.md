@@ -21,7 +21,7 @@ The following changes were made to ensure compatibility with the macOS App Sandb
 
 ### D. Auto-Paste (Accessibility API)
 - **Status**: Implemented via `AXIsProcessTrusted` and `CGEvent`.
-- **Sandbox Compliance**: Instead of using prohibited `osascript` calls, the app now uses the official Apple-recommended Accessibility API path. 
+- **Sandbox Compliance**: Instead of using prohibited `osascript` calls, the app now uses the official Apple-recommended Accessibility API path.
 - **User Flow**: If permissions are missing, a banner appears in Settings guiding the user to *System Settings > Privacy & Security > Accessibility*. Once granted, the app can simulate the `Cmd+V` keystroke from within the sandbox.
 
 ### E. Conditional Compilation
@@ -36,7 +36,7 @@ The following changes were made to ensure compatibility with the macOS App Sandb
 ## 2. Configuration Files
 
 ### Entitlements.plist (`src-tauri/Entitlements.plist`)
-This file defines the permissions for the sandboxed app. 
+This file defines the permissions for the sandboxed app.
 **Action Required**: Replace `YOUR_TEAM_ID` with your actual Apple Team ID.
 
 ```xml
@@ -82,7 +82,7 @@ This script will:
 2.  **Upload**: If verification passes, click "Deliver" in Transporter.
 3.  **App Store Connect**:
     - Select the uploaded build.
-    - Use the high-resolution screenshots found in `docs/paste_paw_light.png` and `docs/paste_paw_dark.png`.
+    - Use the high-resolution screenshots found in `docs/screenshot_macos_light.png` and `docs/screenshot_macos_dark.png`.
     - Provide the Support URL (e.g., your GitHub repo issues page).
 
 ---
