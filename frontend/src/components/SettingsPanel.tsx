@@ -24,6 +24,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { toast } from 'sonner';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Select } from './ui/Select';
 import { useShortcutRecorder } from 'use-shortcut-recorder';
 import { clsx } from 'clsx';
 
@@ -487,29 +488,29 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         <label className="block">
                           <span className="text-sm font-medium">{t('settings.theme')}</span>
                         </label>
-                        <select
+                        <Select
                           value={settings.theme}
-                          onChange={(e) => handleThemeChange(e.target.value)}
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="dark">{t('settings.themeDark')}</option>
-                          <option value="light">{t('settings.themeLight')}</option>
-                          <option value="system">{t('settings.themeSystem')}</option>
-                        </select>
+                          onChange={handleThemeChange}
+                          options={[
+                            { value: 'dark', label: t('settings.themeDark') },
+                            { value: 'light', label: t('settings.themeLight') },
+                            { value: 'system', label: t('settings.themeSystem') },
+                          ]}
+                        />
                       </div>
 
                       <div className="space-y-3">
                         <label className="block">
                           <span className="text-sm font-medium">{t('settings.language')}</span>
                         </label>
-                        <select
+                        <Select
                           value={settings.language || 'en'}
-                          onChange={(e) => handleLanguageChange(e.target.value)}
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="en">English</option>
-                          <option value="zh">中文</option>
-                        </select>
+                          onChange={handleLanguageChange}
+                          options={[
+                            { value: 'en', label: 'English' },
+                            { value: 'zh', label: '中文' },
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -518,15 +519,15 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                         <label className="block">
                           <span className="text-sm font-medium">{t('settings.windowEffect')}</span>
                         </label>
-                        <select
+                        <Select
                           value={settings.mica_effect || 'clear'}
-                          onChange={(e) => updateSetting('mica_effect', e.target.value)}
-                          className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        >
-                          <option value="mica_alt">Mica Alt</option>
-                          <option value="mica">Mica</option>
-                          <option value="clear">Clear</option>
-                        </select>
+                          onChange={(val) => updateSetting('mica_effect', val)}
+                          options={[
+                            { value: 'mica_alt', label: 'Mica Alt' },
+                            { value: 'mica', label: 'Mica' },
+                            { value: 'clear', label: 'Clear' },
+                          ]}
+                        />
                       </div>
                     )}
 
@@ -755,10 +756,9 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
                       <label className="block">
                         <span className="text-sm font-medium">{t('settings.provider')}</span>
                       </label>
-                      <select
+                      <Select
                         value={settings.ai_provider || 'openai'}
-                        onChange={(e) => {
-                          const newProvider = e.target.value;
+                        onChange={(newProvider) => {
                           const updates: Partial<Settings> = { ai_provider: newProvider };
 
                           // Auto-fill Base URL and Model based on provider
@@ -774,12 +774,12 @@ export function SettingsPanel({ settings: initialSettings, onClose }: SettingsPa
 
                           updateSettings(updates);
                         }}
-                        className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        <option value="openai">{t('settings.providerOpenAI')}</option>
-                        <option value="deepseek">{t('settings.providerDeepSeek')}</option>
-                        <option value="custom">{t('settings.providerCustom')}</option>
-                      </select>
+                        options={[
+                          { value: 'openai', label: t('settings.providerOpenAI') },
+                          { value: 'deepseek', label: t('settings.providerDeepSeek') },
+                          { value: 'custom', label: t('settings.providerCustom') },
+                        ]}
+                      />
                     </div>
 
                     <div className="space-y-3">
