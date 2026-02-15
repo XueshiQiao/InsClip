@@ -15,6 +15,9 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
+pub struct SettingsCache {
+    pub ignore_ghost_clips: AtomicBool,
+}
 
 static IS_ANIMATING: AtomicBool = AtomicBool::new(false);
 static LAST_SHOW_TIME: AtomicI64 = AtomicI64::new(0);
@@ -46,6 +49,17 @@ pub fn run_app() {
 
     rt.block_on(async {
         db.migrate().await.ok();
+    });
+
+    // Load initial settings for cache
+    let ignore_ghost_clips = rt.block_on(async {
+        db.get_setting("ignore_ghost_clips").await.ok().flatten()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(false)
+    });
+    
+    let settings_cache = Arc::new(SettingsCache {
+        ignore_ghost_clips: AtomicBool::new(ignore_ghost_clips),
     });
 
     let db_arc = Arc::new(db);
@@ -110,6 +124,7 @@ pub fn run_app() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-2920723583").build())
         .manage(db_arc.clone())
+        .manage(settings_cache)
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
             {
