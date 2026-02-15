@@ -8,12 +8,10 @@ use std::sync::Arc;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::models::{Clip, Folder, ClipboardItem, FolderItem};
 use crate::ai::{self, AiConfig, AiAction};
-use dark_light::Mode;
-use crate::models::SettingsCache;
-use std::sync::atomic::Ordering;
+use crate::settings_manager::SettingsManager;
 
 #[tauri::command]
-pub async fn ai_process_clip(clip_id: String, action: String, db: tauri::State<'_, Arc<Database>>) -> Result<String, String> {
+pub async fn ai_process_clip(app: AppHandle, clip_id: String, action: String, db: tauri::State<'_, Arc<Database>>) -> Result<String, String> {
     let pool = &db.pool;
 
     // 1. Get Clip
@@ -29,20 +27,18 @@ pub async fn ai_process_clip(clip_id: String, action: String, db: tauri::State<'
     };
 
     // 2. Get AI Config
-    let provider = db.get_setting("ai_provider").await.unwrap_or(None).unwrap_or("openai".to_string());
-    let api_key = db.get_setting("ai_api_key").await.unwrap_or(None).unwrap_or_default();
-    let model = db.get_setting("ai_model").await.unwrap_or(None).unwrap_or("gpt-3.5-turbo".to_string());
-    let base_url = db.get_setting("ai_base_url").await.unwrap_or(None);
+    let manager = app.state::<Arc<SettingsManager>>();
+    let settings = manager.get();
 
-    if api_key.is_empty() {
+    if settings.ai_api_key.is_empty() {
         return Err("AI API Key is missing in settings".to_string());
     }
 
     let config = AiConfig {
-        provider,
-        api_key,
-        model,
-        base_url,
+        provider: settings.ai_provider,
+        api_key: settings.ai_api_key,
+        model: settings.ai_model,
+        base_url: if settings.ai_base_url.is_empty() { None } else { Some(settings.ai_base_url) },
     };
 
     let ai_action = match action.as_str() {
@@ -53,14 +49,12 @@ pub async fn ai_process_clip(clip_id: String, action: String, db: tauri::State<'
         _ => return Err("Invalid AI action".to_string()),
     };
 
-    let prompt_key = match ai_action {
-        AiAction::Summarize => "ai_prompt_summarize",
-        AiAction::Translate => "ai_prompt_translate",
-        AiAction::ExplainCode => "ai_prompt_explain_code",
-        AiAction::FixGrammar => "ai_prompt_fix_grammar",
+    let custom_prompt = match ai_action {
+        AiAction::Summarize => Some(settings.ai_prompt_summarize),
+        AiAction::Translate => Some(settings.ai_prompt_translate),
+        AiAction::ExplainCode => Some(settings.ai_prompt_explain_code),
+        AiAction::FixGrammar => Some(settings.ai_prompt_fix_grammar),
     };
-
-    let custom_prompt = db.get_setting(prompt_key).await.unwrap_or(None);
 
     // 3. Call AI
     let result = ai::process_text(&text_content, ai_action.clone(), &config, custom_prompt).await.map_err(|e| e.to_string())?;
@@ -219,7 +213,7 @@ pub async fn paste_clip(id: String, app: AppHandle, window: tauri::WebviewWindow
 
             if clip.clip_type == "image" {
                 crate::clipboard::set_ignore_hash(content_hash.clone());
-                crate::clipboard::set_last_stable_hash(content_hash.clone());
+                //crate::clipboard::set_last_stable_hash(content_hash.clone());
 
                 #[cfg(target_os = "macos")]
                 {
@@ -237,7 +231,7 @@ pub async fn paste_clip(id: String, app: AppHandle, window: tauri::WebviewWindow
             } else {
                 let content_str = String::from_utf8_lossy(&clip.content).to_string();
                 crate::clipboard::set_ignore_hash(content_hash.clone());
-                crate::clipboard::set_last_stable_hash(content_hash.clone());
+                //crate::clipboard::set_last_stable_hash(content_hash.clone());
 
                 let mut last_err = String::new();
                 for i in 0..5 {
@@ -272,12 +266,9 @@ pub async fn paste_clip(id: String, app: AppHandle, window: tauri::WebviewWindow
                 let _ = window.emit("clipboard-write", &content);
 
                 // Check auto_paste setting
-                let auto_paste = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'auto_paste'"#)
-                    .fetch_optional(pool)
-                    .await
-                    .unwrap_or(None)
-                    .and_then(|v| v.parse::<bool>().ok())
-                    .unwrap_or(true); // Default true
+                let manager = app.state::<Arc<SettingsManager>>();
+                let settings = manager.get();
+                let auto_paste = settings.auto_paste;
 
                 if auto_paste {
                     // Auto-Paste Logic
@@ -297,9 +288,6 @@ pub async fn paste_clip(id: String, app: AppHandle, window: tauri::WebviewWindow
                         }
                     })));
                 } else {
-                     // If auto_paste is disabled, we still hide the window (as requested by original "copy to text field" intent,
-                     // but maybe user just wants to copy?)
-                     // Actually, if auto_paste is OFF, standard behavior for "Enter/Double Click" in clipboard managers is usually "Copy & Close".
                      crate::animate_window_hide(&window, None);
                 }
             }
@@ -324,8 +312,6 @@ pub async fn delete_clip(id: String, hard_delete: bool, db: tauri::State<'_, Arc
     }
     Ok(())
 }
-
-
 
 #[tauri::command]
 pub async fn move_to_folder(clip_id: String, folder_id: Option<String>, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
@@ -511,348 +497,6 @@ pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<Fold
 }
 
 #[tauri::command]
-#[allow(unused_variables)]
-pub async fn get_settings(app: AppHandle, db: tauri::State<'_, Arc<Database>>) -> Result<serde_json::Value, String> {
-    #[cfg(not(feature = "app-store"))]
-    use tauri_plugin_autostart::ManagerExt;
-    let pool = &db.pool;
-
-    let mut settings = serde_json::json!({
-        "max_items": 1000,
-        "auto_delete_days": 30,
-        "startup_with_windows": false, // Default, will override below
-        "show_in_taskbar": false,
-        "hotkey": if cfg!(target_os = "macos") { "Cmd+Shift+V" } else { "Ctrl+Shift+V" },
-        "theme": "dark",
-        "mica_effect": "clear",
-        "auto_paste": true,
-        "ignore_ghost_clips": false
-    });
-
-    // ... (rest of get_settings until autostart check)
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'mica_effect'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        settings["mica_effect"] = serde_json::json!(value);
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ignore_ghost_clips'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        if let Ok(b) = value.parse::<bool>() {
-            settings["ignore_ghost_clips"] = serde_json::json!(b);
-        }
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'auto_paste'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        if let Ok(b) = value.parse::<bool>() {
-            settings["auto_paste"] = serde_json::json!(b);
-        }
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'max_items'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        if let Ok(num) = value.parse::<i64>() {
-            settings["max_items"] = serde_json::json!(num);
-        }
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'auto_delete_days'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        if let Ok(num) = value.parse::<i64>() {
-            settings["auto_delete_days"] = serde_json::json!(num);
-        }
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'theme'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        settings["theme"] = serde_json::json!(value);
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'hotkey'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        settings["hotkey"] = serde_json::json!(value);
-    }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'language'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string())
-    {
-        settings["language"] = serde_json::json!(value);
-    }
-
-    // AI Settings
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_provider'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_provider"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_api_key'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_api_key"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_model'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_model"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_base_url'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_base_url"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_prompt_summarize'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_prompt_summarize"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_prompt_translate'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_prompt_translate"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_prompt_explain_code'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_prompt_explain_code"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_prompt_fix_grammar'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_prompt_fix_grammar"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_title_summarize'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_title_summarize"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_title_translate'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_title_translate"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_title_explain_code'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_title_explain_code"] = serde_json::json!(value); }
-
-    if let Ok(Some(value)) = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ai_title_fix_grammar'"#)
-        .fetch_optional(pool).await.map_err(|e| e.to_string()) { settings["ai_title_fix_grammar"] = serde_json::json!(value); }
-
-    // Check actual autostart status
-    #[cfg(not(feature = "app-store"))]
-    {
-        if let Ok(is_enabled) = app.autolaunch().is_enabled() {
-            settings["startup_with_windows"] = serde_json::json!(is_enabled);
-            log::info!("autostart enabled: {}", is_enabled);
-        } else {
-            log::info!("autostart not enabled");
-        }
-    }
-
-    #[cfg(all(feature = "app-store", target_os = "macos"))]
-    {
-        use smappservice_rs::{AppService, ServiceType, ServiceStatus};
-        let app_service = AppService::new(ServiceType::MainApp);
-        let is_enabled = matches!(app_service.status(), ServiceStatus::Enabled);
-        settings["startup_with_windows"] = serde_json::json!(is_enabled);
-        log::info!("autostart (SMAppService) enabled: {}", is_enabled);
-    }
-
-    Ok(settings)
-}
-
-#[tauri::command]
-pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
-    #[cfg(not(feature = "app-store"))]
-    use tauri_plugin_autostart::ManagerExt;
-    let pool = &db.pool;
-
-    if let Some(max_items) = settings.get("max_items").and_then(|v| v.as_i64()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('max_items', ?)"#)
-            .bind(max_items.to_string())
-            .execute(pool).await.ok();
-    }
-
-    if let Some(days) = settings.get("auto_delete_days").and_then(|v| v.as_i64()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_delete_days', ?)"#)
-            .bind(days.to_string())
-            .execute(pool).await.ok();
-    }
-
-    if let Some(theme) = settings.get("theme").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('theme', ?)"#)
-            .bind(theme)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(mica_effect) = settings.get("mica_effect").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('mica_effect', ?)"#)
-            .bind(mica_effect)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(language) = settings.get("language").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('language', ?)"#)
-            .bind(language)
-            .execute(pool).await.ok();
-    }
-
-    // Always re-apply window effect when theme or mica_effect might have changed
-    let theme_str = settings.get("theme").and_then(|v| v.as_str()).unwrap_or("system");
-    let mica_effect = settings.get("mica_effect").and_then(|v| v.as_str()).unwrap_or("clear");
-    if let Some(win) = app.get_webview_window("main") {
-        // get current system theme
-        let current_theme = if theme_str == "light" {
-            tauri::Theme::Light
-        } else if theme_str == "dark" {
-            tauri::Theme::Dark
-        } else {
-            let mode = dark_light::detect().map_err(|e| {
-                log::error!("THEME: Failed to detect system theme: {:?} via dark_light::detect()", e);
-                e.to_string()
-            })?;
-
-            let theme2 = match mode {
-                Mode::Dark => tauri::Theme::Dark,
-                Mode::Light => tauri::Theme::Light,
-                _ => tauri::Theme::Light,
-            };
-
-            log::info!("THEME: win.theme(): {:?}, dark_light::detectd(): {:?}", win.theme(), theme2);
-
-            // sometimes win.theme() is not right. don't why for now..
-            // win.theme().unwrap_or_else(|err| {
-            //     log::error!("THEME: Failed to get system theme: {:?}, defaulting to Light", err);
-            //     tauri::Theme::Light
-            // })
-            theme2
-        };
-        log::info!("THEME:Applying window effect: {} with theme: {:?} (setting:{:?}", mica_effect, current_theme, theme_str);
-        crate::apply_window_effect(&win, mica_effect, &current_theme);
-    }
-
-    if let Some(ai_provider) = settings.get("ai_provider").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_provider', ?)"#)
-            .bind(ai_provider)
-            .execute(pool).await.ok();
-    }
-    if let Some(ai_api_key) = settings.get("ai_api_key").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_api_key', ?)"#)
-            .bind(ai_api_key)
-            .execute(pool).await.ok();
-    }
-    if let Some(ai_model) = settings.get("ai_model").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_model', ?)"#)
-            .bind(ai_model)
-            .execute(pool).await.ok();
-    }
-    if let Some(ai_base_url) = settings.get("ai_base_url").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_base_url', ?)"#)
-            .bind(ai_base_url)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_prompt_summarize) = settings.get("ai_prompt_summarize").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_prompt_summarize', ?)"#)
-            .bind(ai_prompt_summarize)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_prompt_translate) = settings.get("ai_prompt_translate").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_prompt_translate', ?)"#)
-            .bind(ai_prompt_translate)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_prompt_explain_code) = settings.get("ai_prompt_explain_code").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_prompt_explain_code', ?)"#)
-            .bind(ai_prompt_explain_code)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_prompt_fix_grammar) = settings.get("ai_prompt_fix_grammar").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_prompt_fix_grammar', ?)"#)
-            .bind(ai_prompt_fix_grammar)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_title_summarize) = settings.get("ai_title_summarize").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_title_summarize', ?)"#)
-            .bind(ai_title_summarize)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_title_translate) = settings.get("ai_title_translate").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_title_translate', ?)"#)
-            .bind(ai_title_translate)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_title_explain_code) = settings.get("ai_title_explain_code").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_title_explain_code', ?)"#)
-            .bind(ai_title_explain_code)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ai_title_fix_grammar) = settings.get("ai_title_fix_grammar").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_title_fix_grammar', ?)"#)
-            .bind(ai_title_fix_grammar)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(hotkey) = settings.get("hotkey").and_then(|v| v.as_str()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('hotkey', ?)"#)
-            .bind(hotkey)
-            .execute(pool).await.ok();
-    }
-
-    if let Some(auto_paste) = settings.get("auto_paste").and_then(|v| v.as_bool()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('auto_paste', ?)"#)
-            .bind(auto_paste.to_string())
-            .execute(pool).await.ok();
-    }
-
-    if let Some(ignore_ghost) = settings.get("ignore_ghost_clips").and_then(|v| v.as_bool()) {
-        sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ignore_ghost_clips', ?)"#)
-            .bind(ignore_ghost.to_string())
-            .execute(pool).await.ok();
-        
-        if let Some(cache) = app.try_state::<Arc<SettingsCache>>() {
-            cache.ignore_ghost_clips.store(ignore_ghost, Ordering::Relaxed);
-        }
-    }
-
-    #[cfg(not(feature = "app-store"))]
-    {
-        if let Some(startup) = settings.get("startup_with_windows").and_then(|v| v.as_bool()) {
-            let current_state = app.autolaunch().is_enabled().unwrap_or(false);
-            if startup != current_state {
-                if startup {
-                    if let Err(e) = app.autolaunch().enable() {
-                        log::warn!("Failed to enable autostart: {}", e);
-                    }
-                } else {
-                    if let Err(e) = app.autolaunch().disable() {
-                        log::warn!("Failed to disable autostart: {}", e);
-                    }
-                }
-            }
-        }
-    }
-
-    #[cfg(all(feature = "app-store", target_os = "macos"))]
-    {
-        if let Some(startup) = settings.get("startup_with_windows").and_then(|v| v.as_bool()) {
-            use smappservice_rs::{AppService, ServiceType, ServiceStatus};
-            let app_service = AppService::new(ServiceType::MainApp);
-            let current_state = matches!(app_service.status(), ServiceStatus::Enabled);
-
-            if startup != current_state {
-                if startup {
-                    if let Err(e) = app_service.register() {
-                        log::error!("Failed to register SMAppService: {}", e);
-                        return Err(format!("Failed to enable autostart: {}", e));
-                    }
-                } else {
-                    if let Err(e) = app_service.unregister() {
-                        log::error!("Failed to unregister SMAppService: {}", e);
-                        return Err(format!("Failed to disable autostart: {}", e));
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
 pub fn hide_window(window: tauri::WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|e| e.to_string())
 }
@@ -923,16 +567,13 @@ pub async fn register_global_shortcut(hotkey: String, window: tauri::WebviewWind
     let app = window.app_handle();
     let shortcut = Shortcut::from_str(&hotkey).map_err(|e| format!("Invalid hotkey: {:?}", e))?;
 
-    // Unregister all existing shortcuts first
     if let Err(e) = app.global_shortcut().unregister_all() {
         log::warn!("Failed to unregister existing shortcuts: {:?}", e);
     }
 
-    // Get the main window for the handler
     let main_window = app.get_webview_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
 
-    // Register the new shortcut with the window show handler
     let win_clone = main_window.clone();
     if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
         if event.state() == ShortcutState::Pressed {
@@ -969,21 +610,6 @@ pub async fn focus_window(app: AppHandle, label: String) -> Result<(), String> {
 pub fn show_window(window: tauri::WebviewWindow) -> Result<(), String> {
     crate::position_window_at_bottom(&window);
     Ok(())
-}
-
-#[tauri::command]
-pub async fn add_ignored_app(app_name: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
-    db.add_ignored_app(&app_name).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn remove_ignored_app(app_name: String, db: tauri::State<'_, Arc<Database>>) -> Result<(), String> {
-    db.remove_ignored_app(&app_name).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn get_ignored_apps(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<String>, String> {
-    db.get_ignored_apps().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

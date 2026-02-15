@@ -11,7 +11,7 @@
   -   *Scope:* `lib.rs` (init), `clipboard.rs` (read), `commands.rs` (update).
 
 ## Phase 3: Implementation (General Optimization)
-- [ ] Task: **SQL-02/03 Fix:** Refactor Settings Storage to use JSON file (`SettingsManager`).
-  -   *Goal:* Replace N+1 SQL queries with single file read/write.
-  -   *Strict Constraint:* Do NOT modify `get_clips` or other unrelated commands. Only replace `get_settings`, `save_settings`, and ignored app commands.
-- [ ] Task: Migration logic (SQLite -> JSON).
+- [x] Task: **SQL-02/03 Fix:** Refactor Settings Storage to use JSON file (`SettingsManager`).
+  -   *Strategy:* Created `settings_commands.rs` and `settings_manager.rs`. Replaced DB calls.
+- [x] Task: Migration logic (SQLite -> JSON).
+  *Note: Implemented in `SettingsManager::new`.*

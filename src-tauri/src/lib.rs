@@ -25,12 +25,14 @@ mod models;
 mod commands;
 mod constants;
 mod ai;
+mod settings_manager;
+mod settings_commands;
 #[cfg(target_os = "macos")]
 mod source_app_macos;
 
 use models::get_runtime;
 use database::Database;
-use models::SettingsCache;
+use settings_manager::SettingsManager;
 
 pub fn run_app() {
     let data_dir = get_data_dir();
@@ -47,16 +49,6 @@ pub fn run_app() {
 
     rt.block_on(async {
         db.migrate().await.ok();
-    });
-
-    let ignore_ghost_clips = rt.block_on(async {
-        db.get_setting("ignore_ghost_clips").await.ok().flatten()
-            .and_then(|v| v.parse::<bool>().ok())
-            .unwrap_or(false)
-    });
-
-    let settings_cache = Arc::new(SettingsCache {
-        ignore_ghost_clips: AtomicBool::new(ignore_ghost_clips),
     });
 
     let db_arc = Arc::new(db);
@@ -121,7 +113,6 @@ pub fn run_app() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-2920723583").build())
         .manage(db_arc.clone())
-        .manage(settings_cache)
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
             {
@@ -135,12 +126,15 @@ pub fn run_app() {
                     log::info!("THEME:System theme changed to: {:?}, win.theme(): {:?}", theme, window.theme());
                     let label = window.label().to_string();
                     let app_handle = window.app_handle().clone();
-                    let db = window.state::<Arc<Database>>().inner().clone();
                     let theme_ = theme.clone();
+                    
+                    // Use SettingsManager
+                    let manager = window.state::<Arc<SettingsManager>>();
+                    let settings = manager.get();
 
                     tauri::async_runtime::spawn(async move {
-                        let current_theme = db.get_setting("theme").await.ok().flatten().unwrap_or_else(|| "system".to_string());
-                        let mica_effect = db.get_setting("mica_effect").await.ok().flatten().unwrap_or_else(|| "clear".to_string());
+                        let current_theme = settings.theme;
+                        let mica_effect = settings.mica_effect;
 
                         log::info!("THEME:Re-applying window effect due to theme change. Current theme setting: {:?}, system theme: {:?}, mica_effect setting: {:?}", current_theme, theme_, mica_effect);
                         // If app is set to follow system, we re-apply based on the NEW system theme
@@ -190,6 +184,14 @@ pub fn run_app() {
         })
         .setup(move |app| {
             log::info!("PastePaw starting...");
+            
+            // Initialize Settings Manager
+            let db_for_settings = db_arc.clone();
+            let settings_manager = get_runtime().unwrap().block_on(async {
+                SettingsManager::new(app.handle(), &db_for_settings).await
+            });
+            app.manage(Arc::new(settings_manager));
+
             let _ = app.track_event("startup", None);
             log::info!("Database path: {}", db_path_str);
             if let Ok(log_dir) = app.path().app_log_dir() {
@@ -281,16 +283,8 @@ pub fn run_app() {
             }
 
             // Load saved hotkey from database or use default
-            let db_for_hotkey = db_for_clipboard.clone();
-            let saved_hotkey = get_runtime().unwrap().block_on(async {
-                db_for_hotkey.get_setting("hotkey").await.ok().flatten()
-            }).unwrap_or_else(|| {
-                if cfg!(target_os = "macos") {
-                    "Cmd+Shift+V".to_string()
-                } else {
-                    "Ctrl+Shift+V".to_string()
-                }
-            });
+            let manager = app_handle.state::<Arc<SettingsManager>>();
+            let saved_hotkey = manager.get().hotkey;
 
             log::info!("Registering hotkey: {}", saved_hotkey);
 
@@ -334,8 +328,9 @@ pub fn run_app() {
             commands::delete_folder,
             commands::search_clips,
             commands::get_folders,
-            commands::get_settings,
-            commands::save_settings,
+            // Replaced by settings_commands
+            settings_commands::get_settings,
+            settings_commands::save_settings,
             commands::hide_window,
             commands::get_clipboard_history_size,
             commands::clear_clipboard_history,
@@ -343,9 +338,9 @@ pub fn run_app() {
             commands::remove_duplicate_clips,
             commands::register_global_shortcut,
             commands::show_window,
-            commands::add_ignored_app,
-            commands::remove_ignored_app,
-            commands::get_ignored_apps,
+            settings_commands::add_ignored_app,
+            settings_commands::remove_ignored_app,
+            settings_commands::get_ignored_apps,
             commands::pick_file,
             commands::get_layout_config,
             commands::test_log,
