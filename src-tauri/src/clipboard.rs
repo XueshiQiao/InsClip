@@ -185,32 +185,26 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>, source_app_
     let (source_app, source_icon, exe_name, full_path, is_explicit_owner) = source_app_info;
     log::info!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}, explicit: {}", source_app, exe_name, full_path, is_explicit_owner);
 
-    // Check settings (cached via SettingsManager)
+    // Check ignore_ghost_clips setting (cached)
     use tauri::Manager;
-    use crate::settings_manager::SettingsManager;
-    let manager = app.state::<Arc<SettingsManager>>();
-    let settings = manager.get();
+    let settings_cache = app.state::<Arc<crate::SettingsCache>>();
+    let ignore_ghost_clips = settings_cache.ignore_ghost_clips.load(Ordering::Relaxed);
 
-    if settings.ignore_ghost_clips && !is_explicit_owner {
+    if ignore_ghost_clips && !is_explicit_owner {
         log::info!("CLIPBOARD: Ignoring ghost clip (unknown owner)");
         return;
     }
 
-    // Check if the app is in the ignore list (Case Insensitive)
-    let is_ignored = |name: &str| {
-        let name_lower = name.to_lowercase();
-        settings.ignored_apps.iter().any(|app| app.to_lowercase() == name_lower)
-    };
-
+    // Check if the app is in the ignore list
     if let Some(ref path) = full_path {
-        if is_ignored(path) {
+        if let Ok(true) = db.is_app_ignored(path).await {
              log::info!("CLIPBOARD: Ignoring content from ignored app (path match): {}", path);
              return;
         }
     }
 
     if let Some(ref exe) = exe_name {
-        if is_ignored(exe) {
+        if let Ok(true) = db.is_app_ignored(exe).await {
              log::info!("CLIPBOARD: Ignoring content from ignored app (exe match): {}", exe);
              return;
         }
