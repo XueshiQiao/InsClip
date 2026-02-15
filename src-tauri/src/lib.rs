@@ -15,10 +15,6 @@ use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
-pub struct SettingsCache {
-    pub ignore_ghost_clips: AtomicBool,
-}
-
 static IS_ANIMATING: AtomicBool = AtomicBool::new(false);
 static LAST_SHOW_TIME: AtomicI64 = AtomicI64::new(0);
 
@@ -28,11 +24,13 @@ mod models;
 mod commands;
 mod constants;
 mod ai;
+mod settings_manager;
 #[cfg(target_os = "macos")]
 mod source_app_macos;
 
 use models::get_runtime;
 use database::Database;
+use settings_manager::SettingsManager;
 
 pub fn run_app() {
     let data_dir = get_data_dir();
@@ -49,17 +47,6 @@ pub fn run_app() {
 
     rt.block_on(async {
         db.migrate().await.ok();
-    });
-
-    // Load initial settings for cache
-    let ignore_ghost_clips = rt.block_on(async {
-        db.get_setting("ignore_ghost_clips").await.ok().flatten()
-            .and_then(|v| v.parse::<bool>().ok())
-            .unwrap_or(false)
-    });
-    
-    let settings_cache = Arc::new(SettingsCache {
-        ignore_ghost_clips: AtomicBool::new(ignore_ghost_clips),
     });
 
     let db_arc = Arc::new(db);
@@ -124,7 +111,6 @@ pub fn run_app() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-2920723583").build())
         .manage(db_arc.clone())
-        .manage(settings_cache)
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
             {
@@ -138,12 +124,13 @@ pub fn run_app() {
                     log::info!("THEME:System theme changed to: {:?}, win.theme(): {:?}", theme, window.theme());
                     let label = window.label().to_string();
                     let app_handle = window.app_handle().clone();
-                    let db = window.state::<Arc<Database>>().inner().clone();
                     let theme_ = theme.clone();
+                    let manager = window.state::<Arc<SettingsManager>>();
+                    let settings = manager.get();
 
                     tauri::async_runtime::spawn(async move {
-                        let current_theme = db.get_setting("theme").await.ok().flatten().unwrap_or_else(|| "system".to_string());
-                        let mica_effect = db.get_setting("mica_effect").await.ok().flatten().unwrap_or_else(|| "clear".to_string());
+                        let current_theme = settings.theme;
+                        let mica_effect = settings.mica_effect;
 
                         log::info!("THEME:Re-applying window effect due to theme change. Current theme setting: {:?}, system theme: {:?}, mica_effect setting: {:?}", current_theme, theme_, mica_effect);
                         // If app is set to follow system, we re-apply based on the NEW system theme
@@ -193,6 +180,14 @@ pub fn run_app() {
         })
         .setup(move |app| {
             log::info!("PastePaw starting...");
+            
+            // Initialize Settings Manager
+            let db_for_settings = db_arc.clone();
+            let settings_manager = get_runtime().unwrap().block_on(async {
+                SettingsManager::new(app.handle(), &db_for_settings).await
+            });
+            app.manage(Arc::new(settings_manager));
+
             let _ = app.track_event("startup", None);
             log::info!("Database path: {}", db_path_str);
             if let Ok(log_dir) = app.path().app_log_dir() {
@@ -247,12 +242,10 @@ pub fn run_app() {
 
             #[cfg(target_os = "windows")]
             {
-                let db_for_mica = db_for_clipboard.clone();
-                let (mica_effect, theme) = get_runtime().unwrap().block_on(async {
-                    let m = db_for_mica.get_setting("mica_effect").await.ok().flatten().unwrap_or_else(|| "clear".to_string());
-                    let t = db_for_mica.get_setting("theme").await.ok().flatten().unwrap_or_else(|| "system".to_string());
-                    (m, t)
-                });
+                let manager = app_handle.state::<Arc<SettingsManager>>();
+                let settings = manager.get();
+                let mica_effect = settings.mica_effect;
+                let theme = settings.theme;
 
                 // get current system theme
                 let current_theme = if theme == "light" {
@@ -284,16 +277,8 @@ pub fn run_app() {
             }
 
             // Load saved hotkey from database or use default
-            let db_for_hotkey = db_for_clipboard.clone();
-            let saved_hotkey = get_runtime().unwrap().block_on(async {
-                db_for_hotkey.get_setting("hotkey").await.ok().flatten()
-            }).unwrap_or_else(|| {
-                if cfg!(target_os = "macos") {
-                    "Cmd+Shift+V".to_string()
-                } else {
-                    "Ctrl+Shift+V".to_string()
-                }
-            });
+            let manager = app_handle.state::<Arc<SettingsManager>>();
+            let saved_hotkey = manager.get().hotkey;
 
             log::info!("Registering hotkey: {}", saved_hotkey);
 
