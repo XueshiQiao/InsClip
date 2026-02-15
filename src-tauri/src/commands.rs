@@ -50,14 +50,30 @@ pub async fn ai_process_clip(app: AppHandle, clip_id: String, action: String, db
 
 #[tauri::command]
 pub async fn get_clips(
-    limit: i64,
-    offset: i64,
-    filter_id: Option<i64>,
+    page: i64,
+    page_size: i64,
+    search: Option<String>,
+    folder_id: Option<i64>,
     db: tauri::State<'_, Arc<Database>>
 ) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
+    let offset = (page - 1) * page_size;
 
-    let clips: Vec<Clip> = if let Some(fid) = filter_id {
+    let clips: Vec<Clip> = if let Some(q) = search {
+        let pattern = format!("%{}%", q);
+        sqlx::query_as(r#"
+            SELECT * FROM clips
+            WHERE is_deleted = 0
+            AND (content LIKE ? OR text_preview LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        "#)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool).await.map_err(|e| e.to_string())?
+    } else if let Some(fid) = folder_id {
         sqlx::query_as(r#"
             SELECT * FROM clips
             WHERE is_deleted = 0 AND folder_id = ?
@@ -65,7 +81,7 @@ pub async fn get_clips(
             LIMIT ? OFFSET ?
         "#)
         .bind(fid)
-        .bind(limit)
+        .bind(page_size)
         .bind(offset)
         .fetch_all(pool).await.map_err(|e| e.to_string())?
     } else {
@@ -75,12 +91,10 @@ pub async fn get_clips(
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
         "#)
-        .bind(limit)
+        .bind(page_size)
         .bind(offset)
         .fetch_all(pool).await.map_err(|e| e.to_string())?
     };
-
-    log::info!("get_clips: found {} clips", clips.len());
 
     Ok(clips.into_iter().map(|c| ClipboardItem {
         id: c.uuid,
