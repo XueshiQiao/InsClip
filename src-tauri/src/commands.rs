@@ -9,7 +9,6 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use crate::models::{Clip, Folder, ClipboardItem, FolderItem};
 use crate::ai::{self, AiConfig, AiAction};
 use dark_light::Mode;
-use std::sync::atomic::Ordering;
 
 #[tauri::command]
 pub async fn ai_process_clip(clip_id: String, action: String, db: tauri::State<'_, Arc<Database>>) -> Result<String, String> {
@@ -801,11 +800,6 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value, db: taur
         sqlx::query(r#"INSERT OR REPLACE INTO settings (key, value) VALUES ('ignore_ghost_clips', ?)"#)
             .bind(ignore_ghost.to_string())
             .execute(pool).await.ok();
-        
-        // Update Cache
-        if let Some(cache) = app.try_state::<Arc<crate::SettingsCache>>() {
-            cache.ignore_ghost_clips.store(ignore_ghost, Ordering::Relaxed);
-        }
     }
 
     #[cfg(not(feature = "app-store"))]
