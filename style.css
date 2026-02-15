@@ -322,26 +322,30 @@ nav {
     margin-top: 40px;
 }
 
-.shortcut-box {
-    background: var(--bg-main);
-    padding: 24px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
+.key-group {
     display: flex;
-    flex-direction: column;
+    gap: 4px;
     align-items: center;
-    gap: 12px;
 }
 
 kbd {
-    font-family: 'JetBrains Mono', monospace;
-    background: var(--bg-secondary);
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-main);
     border: 1px solid var(--border-color);
-    padding: 4px 8px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    color: var(--accent);
+    border-bottom: 3px solid var(--border-color);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    min-width: 32px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
 }
+
+.shortcut-box {
 
 /* --- Footer --- */
 footer {
