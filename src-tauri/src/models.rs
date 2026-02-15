@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
+
+pub struct SettingsCache {
+    pub ignore_ghost_clips: AtomicBool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Clip {

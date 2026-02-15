@@ -30,6 +30,7 @@ mod source_app_macos;
 
 use models::get_runtime;
 use database::Database;
+use models::SettingsCache;
 
 pub fn run_app() {
     let data_dir = get_data_dir();
@@ -46,6 +47,16 @@ pub fn run_app() {
 
     rt.block_on(async {
         db.migrate().await.ok();
+    });
+
+    let ignore_ghost_clips = rt.block_on(async {
+        db.get_setting("ignore_ghost_clips").await.ok().flatten()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(false)
+    });
+
+    let settings_cache = Arc::new(SettingsCache {
+        ignore_ghost_clips: AtomicBool::new(ignore_ghost_clips),
     });
 
     let db_arc = Arc::new(db);
@@ -110,6 +121,7 @@ pub fn run_app() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_aptabase::Builder::new("A-US-2920723583").build())
         .manage(db_arc.clone())
+        .manage(settings_cache)
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
             {

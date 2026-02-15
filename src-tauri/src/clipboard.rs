@@ -185,14 +185,11 @@ async fn process_clipboard_change(app: AppHandle, db: Arc<Database>, source_app_
     let (source_app, source_icon, exe_name, full_path, is_explicit_owner) = source_app_info;
     log::info!("CLIPBOARD: Source app: {:?}, exe_name: {:?}, full_path: {:?}, explicit: {}", source_app, exe_name, full_path, is_explicit_owner);
 
-    // Check ignore_ghost_clips setting
-    let pool = &db.pool;
-    let ignore_ghost_clips = sqlx::query_scalar::<_, String>(r#"SELECT value FROM settings WHERE key = 'ignore_ghost_clips'"#)
-        .fetch_optional(pool)
-        .await
-        .unwrap_or(None)
-        .and_then(|v| v.parse::<bool>().ok())
-        .unwrap_or(false);
+    // Check ignore_ghost_clips setting (cached)
+    use tauri::Manager;
+    use crate::models::SettingsCache;
+    let settings_cache = app.state::<Arc<SettingsCache>>();
+    let ignore_ghost_clips = settings_cache.ignore_ghost_clips.load(Ordering::Relaxed);
 
     if ignore_ghost_clips && !is_explicit_owner {
         log::info!("CLIPBOARD: Ignoring ghost clip (unknown owner)");
