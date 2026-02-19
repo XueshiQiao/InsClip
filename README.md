@@ -56,6 +56,21 @@ A beautiful clipboard history manager for Windows, built with Rust + Tauri + Rea
 - `P` - Pin/Unpin selected item
 - `Arrow Up/Down` - Navigate items
 
+### Installation Guide
+
+#### 1. Install via Homebrew (macOS)
+
+```bash
+brew tap XueshiQiao/homebrew-tap
+brew install --cask pastepaw
+```
+
+#### 2. Download from GitHub Releases (macOS and Windows)
+
+Download the latest installer directly from:
+[https://github.com/XueshiQiao/PastePaw/releases](https://github.com/XueshiQiao/PastePaw/releases)
+
+
 ## Application Exceptions (Ignored Apps)
 
 PastePaw allows you to exclude specific applications from being recorded in the clipboard history. This is useful for privacy-sensitive applications like password managers or banking apps.
@@ -100,7 +115,7 @@ PastePaw integrates powerful AI capabilities to help you process your clipboard 
 - Rust 1.70+
 - pnpm
 
-### Installation
+### Dev commands
 
 ```bash
 # Install dependencies
