@@ -99,15 +99,8 @@ export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function 
       edgeY = rect.height;
     }
 
-    e.currentTarget.style.setProperty('--ambient-x', `${x}px`);
-    e.currentTarget.style.setProperty('--ambient-y', `${y}px`);
     e.currentTarget.style.setProperty('--edge-x', `${edgeX}px`);
     e.currentTarget.style.setProperty('--edge-y', `${edgeY}px`);
-    e.currentTarget.style.setProperty('--ambient-opacity', '1');
-  };
-
-  const handleAmbientLeave = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.currentTarget.style.setProperty('--ambient-opacity', '0');
   };
 
   return (
@@ -122,16 +115,12 @@ export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function 
       <div
         onMouseDown={handleMouseDown}
         onMouseMove={handleAmbientMove}
-        onMouseLeave={handleAmbientLeave}
         onClick={onSelect}
         onDoubleClick={onPaste}
         onContextMenu={handleContextMenu}
         style={{
-          '--ambient-x': '50%',
-          '--ambient-y': '50%',
           '--edge-x': '50%',
           '--edge-y': '0%',
-          '--ambient-opacity': 0,
           '--app-hue': `${appHue}`,
           borderColor: isSelected ? `hsl(${appHue} 82% 60%)` : undefined,
           borderWidth: isSelected ? '2px' : undefined,
@@ -145,33 +134,9 @@ export const ClipCard = memo(forwardRef<HTMLDivElement, ClipCardProps>(function 
         )}
       >
         <div
-          className="pointer-events-none absolute inset-0 z-20 transition-opacity duration-200 dark:hidden"
-          style={{
-            opacity: '0',
-            background: `
-              radial-gradient(300px circle at var(--ambient-x) var(--ambient-y), hsl(var(--foreground) / 0.09), transparent 68%),
-              radial-gradient(150px circle at var(--ambient-x) var(--ambient-y), hsl(var(--app-hue) 88% 60% / 0.12), transparent 74%)
-            `,
-            mixBlendMode: 'normal',
-          }}
-        />
-
-        <div
-          className="pointer-events-none absolute inset-0 z-20 hidden transition-opacity duration-200 dark:block"
-          style={{
-            opacity: 'calc(var(--ambient-opacity) * 0.95)',
-            background: `
-              radial-gradient(260px circle at var(--ambient-x) var(--ambient-y), hsl(var(--app-hue) 88% 62% / 0.22), transparent 68%),
-              radial-gradient(140px circle at var(--ambient-x) var(--ambient-y), hsl(var(--foreground) / 0.12), transparent 72%)
-            `,
-            mixBlendMode: 'screen',
-          }}
-        />
-
-        <div
           className={clsx(
-            'pointer-events-none absolute -inset-px z-20 rounded-[16.5px] p-[2.5px] transition-opacity duration-200 dark:p-[1.5px]',
-            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            'pointer-events-none absolute -inset-px z-20 rounded-[17px] p-[2.5px] transition-opacity duration-200 dark:p-[1.5px]',
+            isSelected ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
           )}
           style={{
             background: `
