@@ -16,7 +16,7 @@ pub struct AppSettings {
     pub auto_paste: bool,
     pub ignore_ghost_clips: bool,
     pub startup_with_windows: bool,
-    
+
     // AI
     pub ai_provider: String,
     pub ai_api_key: String,
@@ -43,21 +43,26 @@ impl Default for AppSettings {
             language: "en".to_string(),
             max_items: 1000,
             auto_delete_days: 30,
-            hotkey: if cfg!(target_os = "macos") { "Cmd+Shift+V" } else { "Ctrl+Shift+V" }.to_string(),
+            hotkey: if cfg!(target_os = "macos") {
+                "Cmd+Shift+V"
+            } else {
+                "Ctrl+Shift+V"
+            }
+            .to_string(),
             auto_paste: false,
             ignore_ghost_clips: false,
             startup_with_windows: false,
-            
+
             ai_provider: "openai".to_string(),
             ai_api_key: "".to_string(),
             ai_model: "gpt-3.5-turbo".to_string(),
             ai_base_url: "https://api.openai.com/v1".to_string(),
-            
+
             ai_prompt_summarize: "Summarize this content concisely.".to_string(),
             ai_prompt_translate: "Translate this to English (or user language).".to_string(),
             ai_prompt_explain_code: "Explain this code snippet.".to_string(),
             ai_prompt_fix_grammar: "Fix grammar and spelling.".to_string(),
-            
+
             ai_title_summarize: "Summarize".to_string(),
             ai_title_translate: "Translate".to_string(),
             ai_title_explain_code: "Explain Code".to_string(),

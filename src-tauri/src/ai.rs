@@ -53,7 +53,10 @@ pub async fn process_text(
         }
     };
 
-    let base_url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1");
+    let base_url = config
+        .base_url
+        .as_deref()
+        .unwrap_or("https://api.openai.com/v1");
     let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
     let body = json!({
@@ -79,7 +82,7 @@ pub async fn process_text(
     }
 
     let response_data: OpenAiResponse = res.json().await?;
-    
+
     if let Some(choice) = response_data.choices.first() {
         Ok(choice.message.content.clone())
     } else {

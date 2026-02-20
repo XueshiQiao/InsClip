@@ -1,37 +1,36 @@
 #![allow(non_snake_case)]
 #![allow(unexpected_cfgs)] // objc crate macros check cfg(feature = "cargo-clippy") internally
 #![allow(deprecated)] // cocoa crate deprecated its API in favor of objc2; suppress until migration
+use std::fs;
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+use std::sync::Arc;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     Manager,
 };
+use tauri_plugin_aptabase::EventTracker;
 #[cfg(not(feature = "app-store"))]
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
-use tauri_plugin_aptabase::EventTracker;
-use std::fs;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-
 
 static IS_ANIMATING: AtomicBool = AtomicBool::new(false);
 static LAST_SHOW_TIME: AtomicI64 = AtomicI64::new(0);
 
+mod ai;
 mod clipboard;
-mod database;
-mod models;
 mod commands;
 mod constants;
-mod ai;
-mod settings_manager;
+mod database;
+mod models;
 mod settings_commands;
+mod settings_manager;
 #[cfg(target_os = "macos")]
 mod source_app_macos;
 
-use models::get_runtime;
 use database::Database;
+use models::get_runtime;
 use settings_manager::SettingsManager;
 
 pub fn run_app() {
@@ -43,9 +42,7 @@ pub fn run_app() {
     let rt = get_runtime().expect("Failed to get global tokio runtime");
     let _guard = rt.enter();
 
-    let db = rt.block_on(async {
-        Database::new(&db_path_str).await
-    });
+    let db = rt.block_on(async { Database::new(&db_path_str).await });
 
     rt.block_on(async {
         db.migrate().await.ok();
@@ -88,7 +85,10 @@ pub fn run_app() {
     #[cfg(not(feature = "app-store"))]
     {
         builder = builder
-            .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
+            .plugin(tauri_plugin_autostart::init(
+                MacosLauncher::LaunchAgent,
+                Some(vec!["--flag1", "--flag2"]),
+            ))
             .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
@@ -127,7 +127,7 @@ pub fn run_app() {
                     let label = window.label().to_string();
                     let app_handle = window.app_handle().clone();
                     let theme_ = theme.clone();
-                    
+
                     // Use SettingsManager
                     let manager = window.state::<Arc<SettingsManager>>();
                     let settings = manager.get();
@@ -220,7 +220,7 @@ pub fn run_app() {
         })
         .setup(move |app| {
             log::info!("PastePaw starting...");
-            
+
             // Initialize Settings Manager
             let db_for_settings = db_arc.clone();
             let settings_manager = get_runtime().unwrap().block_on(async {
@@ -399,7 +399,10 @@ fn ease_linear(x: f64) -> f64 {
 
 pub fn animate_window_show(window: &tauri::WebviewWindow) {
     // Atomically check if false and set to true. If already true, return.
-    if IS_ANIMATING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+    if IS_ANIMATING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return;
     }
 
@@ -422,7 +425,9 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
                     height: window_height_px,
                 }));
 
-                let target_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
+                let target_y = work_area.position.y + (work_area.size.height as i32)
+                    - (window_height_px as i32)
+                    - window_margin_px;
                 let start_y = work_area.position.y + (work_area.size.height as i32);
 
                 let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
@@ -439,10 +444,11 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
 
                 for i in 1..=steps {
                     let current_y = start_y as f64 + dy * i as f64;
-                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                        x: work_area.position.x + window_margin_px,
-                        y: current_y as i32,
-                    }));
+                    let _ =
+                        window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                            x: work_area.position.x + window_margin_px,
+                            y: current_y as i32,
+                        }));
                     std::thread::sleep(duration);
                 }
 
@@ -482,18 +488,18 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
                 // Set initial size, position, and show window — all on main thread
                 {
                     let win = window.clone();
-                    let _ = window.run_on_main_thread(move || {
-                        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-                            width,
-                            height: window_height_px,
-                        }));
-                        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                            x,
-                            y: start_y,
-                        }));
-                        let _ = win.show();
-                        let _ = win.set_focus();
-                    });
+                    let _ =
+                        window.run_on_main_thread(move || {
+                            let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                                width,
+                                height: window_height_px,
+                            }));
+                            let _ = win.set_position(tauri::Position::Physical(
+                                tauri::PhysicalPosition { x, y: start_y },
+                            ));
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        });
                 }
 
                 // Animation loop: ~60ms total (30 steps * 2ms)
@@ -508,10 +514,11 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
 
                     let win = window.clone();
                     let _ = window.run_on_main_thread(move || {
-                        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                            x,
-                            y: current_y as i32,
-                        }));
+                        let _ =
+                            win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                                x,
+                                y: current_y as i32,
+                            }));
                     });
                     tokio::time::sleep(step_duration).await;
                 }
@@ -519,12 +526,12 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
                 // Ensure final position is exact
                 {
                     let win = window.clone();
-                    let _ = window.run_on_main_thread(move || {
-                        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                            x,
-                            y: target_y,
-                        }));
-                    });
+                    let _ =
+                        window.run_on_main_thread(move || {
+                            let _ = win.set_position(tauri::Position::Physical(
+                                tauri::PhysicalPosition { x, y: target_y },
+                            ));
+                        });
                 }
             }
             IS_ANIMATING.store(false, Ordering::SeqCst);
@@ -532,9 +539,15 @@ pub fn animate_window_show(window: &tauri::WebviewWindow) {
     }
 }
 
-pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dyn FnOnce() + Send>>) {
+pub fn animate_window_hide(
+    window: &tauri::WebviewWindow,
+    on_done: Option<Box<dyn FnOnce() + Send>>,
+) {
     // Atomically check if false and set to true. If already true, return.
-    if IS_ANIMATING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+    if IS_ANIMATING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
         return;
     }
 
@@ -550,17 +563,27 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
                 let window_height_px = (constants::WINDOW_HEIGHT * scale_factor) as u32;
                 let window_margin_px = (constants::WINDOW_MARGIN * scale_factor) as i32;
 
-                let start_y = work_area.position.y + (work_area.size.height as i32) - (window_height_px as i32) - window_margin_px;
+                let start_y = work_area.position.y + (work_area.size.height as i32)
+                    - (window_height_px as i32)
+                    - window_margin_px;
                 let target_y = work_area.position.y + (work_area.size.height as i32);
 
                 // Fix Z-Order: Dynamic Switch
-                use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, FindWindowW, GetWindowRect, SWP_NOMOVE, SWP_NOSIZE, SWP_NOACTIVATE};
-                use windows::Win32::Foundation::{HWND, RECT};
                 use windows::core::PCWSTR;
+                use windows::Win32::Foundation::{HWND, RECT};
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    FindWindowW, GetWindowRect, SetWindowPos, SWP_NOACTIVATE, SWP_NOMOVE,
+                    SWP_NOSIZE,
+                };
 
                 // 1. Find the Taskbar
-                let class_name: Vec<u16> = "Shell_TrayWnd".encode_utf16().chain(std::iter::once(0)).collect();
-                let taskbar_hwnd = unsafe { FindWindowW(PCWSTR(class_name.as_ptr()), PCWSTR::null()) }.unwrap_or(HWND(std::ptr::null_mut()));
+                let class_name: Vec<u16> = "Shell_TrayWnd"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                let taskbar_hwnd =
+                    unsafe { FindWindowW(PCWSTR(class_name.as_ptr()), PCWSTR::null()) }
+                        .unwrap_or(HWND(std::ptr::null_mut()));
 
                 // 2. Get Taskbar Position (Top Y)
                 let mut taskbar_top_y = 0;
@@ -576,7 +599,15 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
                     let hwnd = HWND(handle.0 as _);
                     let hwnd_topmost = HWND(-1 as _); // HWND_TOPMOST
                     unsafe {
-                        let _ = SetWindowPos(hwnd, Some(hwnd_topmost), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                        let _ = SetWindowPos(
+                            hwnd,
+                            Some(hwnd_topmost),
+                            0,
+                            0,
+                            0,
+                            0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                        );
                     }
                 }
 
@@ -588,10 +619,11 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
 
                 for i in 1..=steps {
                     let current_y = start_y as f64 + dy * i as f64;
-                    let _ = window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                        x: work_area.position.x + window_margin_px,
-                        y: current_y as i32,
-                    }));
+                    let _ =
+                        window.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                            x: work_area.position.x + window_margin_px,
+                            y: current_y as i32,
+                        }));
 
                     // Dynamic Z-Order Switch: When we hit the taskbar, drop BEHIND it
                     if !z_order_switched && taskbar_top_y > 0 && current_y as i32 >= taskbar_top_y {
@@ -599,7 +631,15 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
                             let hwnd = HWND(handle.0 as _);
                             if !taskbar_hwnd.0.is_null() {
                                 unsafe {
-                                    let _ = SetWindowPos(hwnd, Some(taskbar_hwnd), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                                    let _ = SetWindowPos(
+                                        hwnd,
+                                        Some(taskbar_hwnd),
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                                    );
                                 }
                                 z_order_switched = true;
                             }
@@ -650,10 +690,11 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
                     let win = window.clone();
                     let x = work_area.position.x + window_margin_px;
                     let _ = window.run_on_main_thread(move || {
-                        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-                            x,
-                            y: current_y as i32,
-                        }));
+                        let _ =
+                            win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                                x,
+                                y: current_y as i32,
+                            }));
                     });
 
                     tokio::time::sleep(step_duration).await;
@@ -686,7 +727,6 @@ pub fn animate_window_hide(window: &tauri::WebviewWindow, on_done: Option<Box<dy
     }
 }
 
-
 fn get_data_dir() -> std::path::PathBuf {
     let current_dir = std::env::current_dir().unwrap_or(std::path::PathBuf::from("."));
     match dirs::data_dir() {
@@ -698,8 +738,8 @@ fn get_data_dir() -> std::path::PathBuf {
 pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Monitor> {
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
         use windows::Win32::Foundation::POINT;
+        use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
         let mut point = POINT { x: 0, y: 0 };
         let mut found = None;
         if unsafe { GetCursorPos(&mut point).is_ok() } {
@@ -707,8 +747,11 @@ pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Mon
                 for m in monitors {
                     let pos = m.position();
                     let size = m.size();
-                    if point.x >= pos.x && point.x < pos.x + size.width as i32 &&
-                       point.y >= pos.y && point.y < pos.y + size.height as i32 {
+                    if point.x >= pos.x
+                        && point.x < pos.x + size.width as i32
+                        && point.y >= pos.y
+                        && point.y < pos.y + size.height as i32
+                    {
                         found = Some(m);
                         break;
                     }
@@ -719,11 +762,13 @@ pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Mon
     }
     #[cfg(target_os = "macos")]
     {
-        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
         use core_graphics::event::CGEvent;
+        use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 
         let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).ok();
-        let cursor_pos = source.and_then(|src| CGEvent::new(src).ok()).map(|e| e.location());
+        let cursor_pos = source
+            .and_then(|src| CGEvent::new(src).ok())
+            .map(|e| e.location());
 
         if let Some(point) = cursor_pos {
             if let Ok(monitors) = window.available_monitors() {
@@ -731,34 +776,49 @@ pub fn get_monitor_at_cursor(window: &tauri::WebviewWindow) -> Option<tauri::Mon
                     let scale = m.scale_factor();
                     let pos = m.position();
                     let size = m.size();
-                    
+
                     let logical_x = pos.x as f64 / scale;
                     let logical_y = pos.y as f64 / scale;
                     let logical_w = size.width as f64 / scale;
                     let logical_h = size.height as f64 / scale;
 
-                    if point.x >= logical_x && point.x < logical_x + logical_w &&
-                       point.y >= logical_y && point.y < logical_y + logical_h {
+                    if point.x >= logical_x
+                        && point.x < logical_x + logical_w
+                        && point.y >= logical_y
+                        && point.y < logical_y + logical_h
+                    {
                         return Some(m);
                     }
                 }
             }
         }
-        window.current_monitor().ok().flatten()
-            .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()))
+        window.current_monitor().ok().flatten().or_else(|| {
+            window
+                .available_monitors()
+                .ok()
+                .and_then(|m| m.into_iter().next())
+        })
     }
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
-        window.current_monitor().ok().flatten()
-            .or_else(|| window.available_monitors().ok().and_then(|m| m.into_iter().next()))
+        window.current_monitor().ok().flatten().or_else(|| {
+            window
+                .available_monitors()
+                .ok()
+                .and_then(|m| m.into_iter().next())
+        })
     }
 }
 
 pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &tauri::Theme) {
-    log::info!("THEME:apply_window_effect called: effect={}, theme={:?}", effect, theme);
+    log::info!(
+        "THEME:apply_window_effect called: effect={}, theme={:?}",
+        effect,
+        theme
+    );
     #[cfg(target_os = "windows")]
     {
-        use window_vibrancy::{clear_mica, apply_mica, apply_tabbed};
+        use window_vibrancy::{apply_mica, apply_tabbed, clear_mica};
 
         match effect {
             "clear" => {
@@ -766,7 +826,7 @@ pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &
                     log::error!("THEME:Failed to clear mica: {:?}", e);
                 }
                 log::info!("THEME:Mica effect cleared");
-            },
+            }
             "mica" | "dark" => {
                 if let Err(e) = clear_mica(window) {
                     log::error!("THEME:Failed to clear mica: {:?}", e);
@@ -775,7 +835,7 @@ pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &
                     log::error!("THEME:Failed to apply mica: {:?}", e);
                 }
                 log::info!("THEME:Applied Mica effect (Theme: {})", theme);
-            },
+            }
             "mica_alt" | "auto" | _ => {
                 if let Err(e) = clear_mica(window) {
                     log::error!("THEME:Failed to clear mica: {:?}", e);
@@ -801,7 +861,7 @@ pub fn apply_window_effect(window: &tauri::WebviewWindow, effect: &str, theme: &
 fn set_window_level(window: &tauri::WebviewWindow, level: i64) {
     use cocoa::appkit::NSWindow;
     use cocoa::base::id;
-    
+
     if let Ok(handle) = window.ns_window() {
         unsafe {
             let ns_window: id = handle as id;
@@ -813,9 +873,9 @@ fn set_window_level(window: &tauri::WebviewWindow, level: i64) {
 #[cfg(target_os = "macos")]
 fn setup_macos_window(ns_window: cocoa::base::id) {
     use cocoa::appkit::{NSWindow, NSWindowStyleMask};
-    use cocoa::foundation::NSString;
     use cocoa::base::{id, nil, NO, YES};
-    use objc::{msg_send, sel, sel_impl, class};
+    use cocoa::foundation::NSString;
+    use objc::{class, msg_send, sel, sel_impl};
 
     unsafe {
         // 1. Set window to non-opaque and clear background to allow rounded corners
@@ -831,10 +891,10 @@ fn setup_macos_window(ns_window: cocoa::base::id) {
         let content_view: id = ns_window.contentView();
         let subviews: id = msg_send![content_view, subviews];
         let count: usize = msg_send![subviews, count];
-        
+
         if count > 0 {
             let webview: id = msg_send![subviews, objectAtIndex:0];
-            
+
             // Fix white background in WKWebView
             let no_num: id = msg_send![class!(NSNumber), numberWithBool:NO];
             let draws_bg_key = NSString::alloc(nil).init_str("drawsBackground");

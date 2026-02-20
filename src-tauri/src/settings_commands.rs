@@ -1,7 +1,7 @@
-use tauri::{AppHandle, Manager};
 use crate::settings_manager::SettingsManager;
 use dark_light::Mode;
 use std::sync::Arc;
+use tauri::{AppHandle, Manager};
 
 #[tauri::command]
 pub async fn get_settings(app: AppHandle) -> Result<serde_json::Value, String> {
@@ -14,18 +14,24 @@ pub async fn get_settings(app: AppHandle) -> Result<serde_json::Value, String> {
         use tauri_plugin_autostart::ManagerExt;
         if let Ok(is_enabled) = app.autolaunch().is_enabled() {
             if let Some(obj) = value.as_object_mut() {
-                obj.insert("startup_with_windows".to_string(), serde_json::json!(is_enabled));
+                obj.insert(
+                    "startup_with_windows".to_string(),
+                    serde_json::json!(is_enabled),
+                );
             }
         }
     }
 
     #[cfg(all(feature = "app-store", target_os = "macos"))]
     {
-        use smappservice_rs::{AppService, ServiceType, ServiceStatus};
+        use smappservice_rs::{AppService, ServiceStatus, ServiceType};
         let app_service = AppService::new(ServiceType::MainApp);
         let is_enabled = matches!(app_service.status(), ServiceStatus::Enabled);
         if let Some(obj) = value.as_object_mut() {
-            obj.insert("startup_with_windows".to_string(), serde_json::json!(is_enabled));
+            obj.insert(
+                "startup_with_windows".to_string(),
+                serde_json::json!(is_enabled),
+            );
         }
     }
 
@@ -35,9 +41,10 @@ pub async fn get_settings(app: AppHandle) -> Result<serde_json::Value, String> {
 #[tauri::command]
 pub async fn save_settings(app: AppHandle, settings: serde_json::Value) -> Result<(), String> {
     let manager = app.state::<Arc<SettingsManager>>();
-    
+
     // Deserialize incoming settings (Frontend sends full object except ignored_apps)
-    let mut new_settings: crate::models::AppSettings = serde_json::from_value(settings).map_err(|e| e.to_string())?;
+    let mut new_settings: crate::models::AppSettings =
+        serde_json::from_value(settings).map_err(|e| e.to_string())?;
 
     // Preserve ignored_apps from current state (as frontend doesn't send it in this call)
     let current = manager.get();
@@ -46,7 +53,11 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value) -> Resul
     // Window effect
     let theme_str = new_settings.theme.clone();
     let mica_effect = new_settings.mica_effect.clone();
-    log::info!("save_settings: mica_effect={}, theme={}", mica_effect, theme_str);
+    log::info!(
+        "save_settings: mica_effect={}, theme={}",
+        mica_effect,
+        theme_str
+    );
     match app.get_webview_window("main") {
         Some(win) => {
             let current_theme = if theme_str == "light" {
@@ -87,7 +98,7 @@ pub async fn save_settings(app: AppHandle, settings: serde_json::Value) -> Resul
     #[cfg(all(feature = "app-store", target_os = "macos"))]
     {
         let startup = new_settings.startup_with_windows;
-        use smappservice_rs::{AppService, ServiceType, ServiceStatus};
+        use smappservice_rs::{AppService, ServiceStatus, ServiceType};
         let app_service = AppService::new(ServiceType::MainApp);
         let current_state = matches!(app_service.status(), ServiceStatus::Enabled);
         if startup != current_state {

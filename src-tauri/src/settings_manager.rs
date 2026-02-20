@@ -1,8 +1,8 @@
-use crate::models::AppSettings;
 use crate::database::Database;
-use std::sync::RwLock;
-use std::path::PathBuf;
+use crate::models::AppSettings;
 use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
 use tauri::AppHandle;
 use tauri::Manager;
 
@@ -48,35 +48,86 @@ impl SettingsManager {
                 .unwrap_or(None)
         }
 
-        if let Some(v) = get_val(pool, "theme").await { settings.theme = v; }
-        if let Some(v) = get_val(pool, "mica_effect").await { settings.mica_effect = v; }
-        if let Some(v) = get_val(pool, "language").await { settings.language = v; }
+        if let Some(v) = get_val(pool, "theme").await {
+            settings.theme = v;
+        }
+        if let Some(v) = get_val(pool, "mica_effect").await {
+            settings.mica_effect = v;
+        }
+        if let Some(v) = get_val(pool, "language").await {
+            settings.language = v;
+        }
 
-        if let Some(v) = get_val(pool, "max_items").await { if let Ok(i) = v.parse() { settings.max_items = i; } }
-        if let Some(v) = get_val(pool, "auto_delete_days").await { if let Ok(i) = v.parse() { settings.auto_delete_days = i; } }
-        if let Some(v) = get_val(pool, "hotkey").await { settings.hotkey = v; }
+        if let Some(v) = get_val(pool, "max_items").await {
+            if let Ok(i) = v.parse() {
+                settings.max_items = i;
+            }
+        }
+        if let Some(v) = get_val(pool, "auto_delete_days").await {
+            if let Ok(i) = v.parse() {
+                settings.auto_delete_days = i;
+            }
+        }
+        if let Some(v) = get_val(pool, "hotkey").await {
+            settings.hotkey = v;
+        }
 
-        if let Some(v) = get_val(pool, "auto_paste").await { if let Ok(b) = v.parse() { settings.auto_paste = b; } }
-        if let Some(v) = get_val(pool, "ignore_ghost_clips").await { if let Ok(b) = v.parse() { settings.ignore_ghost_clips = b; } }
+        if let Some(v) = get_val(pool, "auto_paste").await {
+            if let Ok(b) = v.parse() {
+                settings.auto_paste = b;
+            }
+        }
+        if let Some(v) = get_val(pool, "ignore_ghost_clips").await {
+            if let Ok(b) = v.parse() {
+                settings.ignore_ghost_clips = b;
+            }
+        }
 
         // AI
-        if let Some(v) = get_val(pool, "ai_provider").await { settings.ai_provider = v; }
-        if let Some(v) = get_val(pool, "ai_api_key").await { settings.ai_api_key = v; }
-        if let Some(v) = get_val(pool, "ai_model").await { settings.ai_model = v; }
-        if let Some(v) = get_val(pool, "ai_base_url").await { settings.ai_base_url = v; }
+        if let Some(v) = get_val(pool, "ai_provider").await {
+            settings.ai_provider = v;
+        }
+        if let Some(v) = get_val(pool, "ai_api_key").await {
+            settings.ai_api_key = v;
+        }
+        if let Some(v) = get_val(pool, "ai_model").await {
+            settings.ai_model = v;
+        }
+        if let Some(v) = get_val(pool, "ai_base_url").await {
+            settings.ai_base_url = v;
+        }
 
-        if let Some(v) = get_val(pool, "ai_prompt_summarize").await { settings.ai_prompt_summarize = v; }
-        if let Some(v) = get_val(pool, "ai_prompt_translate").await { settings.ai_prompt_translate = v; }
-        if let Some(v) = get_val(pool, "ai_prompt_explain_code").await { settings.ai_prompt_explain_code = v; }
-        if let Some(v) = get_val(pool, "ai_prompt_fix_grammar").await { settings.ai_prompt_fix_grammar = v; }
+        if let Some(v) = get_val(pool, "ai_prompt_summarize").await {
+            settings.ai_prompt_summarize = v;
+        }
+        if let Some(v) = get_val(pool, "ai_prompt_translate").await {
+            settings.ai_prompt_translate = v;
+        }
+        if let Some(v) = get_val(pool, "ai_prompt_explain_code").await {
+            settings.ai_prompt_explain_code = v;
+        }
+        if let Some(v) = get_val(pool, "ai_prompt_fix_grammar").await {
+            settings.ai_prompt_fix_grammar = v;
+        }
 
-        if let Some(v) = get_val(pool, "ai_title_summarize").await { settings.ai_title_summarize = v; }
-        if let Some(v) = get_val(pool, "ai_title_translate").await { settings.ai_title_translate = v; }
-        if let Some(v) = get_val(pool, "ai_title_explain_code").await { settings.ai_title_explain_code = v; }
-        if let Some(v) = get_val(pool, "ai_title_fix_grammar").await { settings.ai_title_fix_grammar = v; }
+        if let Some(v) = get_val(pool, "ai_title_summarize").await {
+            settings.ai_title_summarize = v;
+        }
+        if let Some(v) = get_val(pool, "ai_title_translate").await {
+            settings.ai_title_translate = v;
+        }
+        if let Some(v) = get_val(pool, "ai_title_explain_code").await {
+            settings.ai_title_explain_code = v;
+        }
+        if let Some(v) = get_val(pool, "ai_title_fix_grammar").await {
+            settings.ai_title_fix_grammar = v;
+        }
 
         // Ignored Apps
-        if let Ok(apps) = sqlx::query_scalar::<_, String>("SELECT app_name FROM ignored_apps").fetch_all(pool).await {
+        if let Ok(apps) = sqlx::query_scalar::<_, String>("SELECT app_name FROM ignored_apps")
+            .fetch_all(pool)
+            .await
+        {
             settings.ignored_apps = apps.into_iter().collect();
         }
 

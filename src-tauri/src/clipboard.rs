@@ -1,10 +1,10 @@
 use tauri::{AppHandle, Emitter, Listener};
 // Import functions directly from the crate root
 use crate::database::Database;
-use clipboard_rs::common::RustImage;
-use clipboard_rs::{Clipboard, ClipboardContext};
 #[cfg(target_os = "windows")]
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use clipboard_rs::common::RustImage;
+use clipboard_rs::{Clipboard, ClipboardContext};
 use once_cell::sync::Lazy;
 use sha2::{Digest, Sha256};
 #[cfg(target_os = "windows")]
@@ -183,12 +183,7 @@ fn read_clipboard_image_fast() -> Result<ClipboardImageRead, String> {
         let rgba = img.to_rgba8();
         let mut png_bytes = Vec::new();
         PngEncoder::new(&mut png_bytes)
-            .write_image(
-                rgba.as_raw(),
-                rgba.width(),
-                rgba.height(),
-                ColorType::Rgba8,
-            )
+            .write_image(rgba.as_raw(), rgba.width(), rgba.height(), ColorType::Rgba8)
             .map_err(|e| e.to_string())?;
         Ok((png_bytes, width, height))
     }
@@ -262,7 +257,11 @@ fn read_clipboard_image_fast() -> Result<ClipboardImageRead, String> {
             if let Some(encoded_bytes) = data_for_type(pasteboard, selected_type) {
                 if selected_type == "public.png" {
                     let (width, height) = image_dimensions_from_bytes(&encoded_bytes)?;
-                    log::debug!("find public.png directly, width:{}, height:{}", width, height);
+                    log::debug!(
+                        "find public.png directly, width:{}, height:{}",
+                        width,
+                        height
+                    );
                     return Ok(ClipboardImageRead {
                         raw_hash: calculate_hash(&encoded_bytes),
                         png_bytes: encoded_bytes,
@@ -279,7 +278,11 @@ fn read_clipboard_image_fast() -> Result<ClipboardImageRead, String> {
                 {
                     let decode_ms = decode_started.elapsed().as_millis();
 
-                    log::debug!("re-encode {} successfully, takes {} ms", selected_type, decode_ms);
+                    log::debug!(
+                        "re-encode {} successfully, takes {} ms",
+                        selected_type,
+                        decode_ms
+                    );
                     return Ok(ClipboardImageRead {
                         raw_hash: calculate_hash(&encoded_bytes),
                         png_bytes,
@@ -301,7 +304,10 @@ fn read_clipboard_image_fast() -> Result<ClipboardImageRead, String> {
             let decode_started = std::time::Instant::now();
             let (png_bytes, width, height) = decode_encoded_image_to_png(&file_bytes)?;
             let decode_ms = decode_started.elapsed().as_millis();
-            log::debug!("decode public.file-url successfully, takes {} ms", decode_ms);
+            log::debug!(
+                "decode public.file-url successfully, takes {} ms",
+                decode_ms
+            );
             return Ok(ClipboardImageRead {
                 raw_hash: calculate_hash(&file_bytes),
                 png_bytes,
@@ -359,7 +365,6 @@ async fn process_clipboard_change(
     log::debug!("CLIPBOARD: Attempting to read image from clipboard");
     let image_read_started = std::time::Instant::now();
     if let Ok(read_image_result) = read_clipboard_image_fast() {
-
         image_read_ms = image_read_started.elapsed().as_millis();
         log::debug!(
             "CLIPBOARD: Image read successfully, source_type={}, takes {} ms",
@@ -550,7 +555,10 @@ async fn process_clipboard_change(
                         .await;
                     }
                     Err(e) => {
-                        log::warn!("Failed to persist full image file, fallback to DB blob: {}", e);
+                        log::warn!(
+                            "Failed to persist full image file, fallback to DB blob: {}",
+                            e
+                        );
                         let _ = sqlx::query(
                             r#"
                             INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
@@ -616,7 +624,10 @@ async fn process_clipboard_change(
                         .await;
                     }
                     Err(e) => {
-                        log::warn!("Failed to persist full image file, fallback to DB blob: {}", e);
+                        log::warn!(
+                            "Failed to persist full image file, fallback to DB blob: {}",
+                            e
+                        );
                         let _ = sqlx::query(
                             r#"
                             INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)

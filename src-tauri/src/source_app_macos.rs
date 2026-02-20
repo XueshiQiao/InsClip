@@ -1,12 +1,12 @@
-use cocoa::base::{id, nil};
-use cocoa::foundation::NSString;
-use objc::{class, msg_send, sel, sel_impl};
-use objc::declare::ClassDecl;
-use objc::runtime::{Object, Sel};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use std::sync::Mutex;
+use cocoa::base::{id, nil};
+use cocoa::foundation::NSString;
+use objc::declare::ClassDecl;
+use objc::runtime::{Object, Sel};
+use objc::{class, msg_send, sel, sel_impl};
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 const OWN_BUNDLE_ID: &str = "me.xueshi.pastepaw";
 const OWN_APP_NAME: &str = "PastePaw";
@@ -45,12 +45,16 @@ pub fn start_frontmost_app_observer() {
         extern "C" fn handle_app_activated(_self: &Object, _cmd: Sel, notification: id) {
             unsafe {
                 let user_info: id = msg_send![notification, userInfo];
-                if user_info == nil { return; }
+                if user_info == nil {
+                    return;
+                }
 
-                let key = cocoa::foundation::NSString::alloc(nil)
-                    .init_str("NSWorkspaceApplicationKey");
+                let key =
+                    cocoa::foundation::NSString::alloc(nil).init_str("NSWorkspaceApplicationKey");
                 let app: id = msg_send![user_info, objectForKey: key];
-                if app == nil { return; }
+                if app == nil {
+                    return;
+                }
 
                 let ns_name: id = msg_send![app, localizedName];
                 let name = nsstring_to_string(ns_name);
@@ -70,7 +74,11 @@ pub fn start_frontmost_app_observer() {
                     None
                 };
 
-                log::debug!("CLIPBOARD: App activated (tracked): {:?} ({:?})", name, bundle_id);
+                log::debug!(
+                    "CLIPBOARD: App activated (tracked): {:?} ({:?})",
+                    name,
+                    bundle_id
+                );
 
                 if let Ok(mut lock) = LAST_FOREGROUND_APP.lock() {
                     *lock = Some(CachedAppInfo {
@@ -115,7 +123,13 @@ pub fn start_frontmost_app_observer() {
 /// If the current frontmost app is PastePaw, falls back to the last tracked non-PastePaw app
 /// from the activation observer, eliminating the race condition where the user switches to
 /// PastePaw before the clipboard event is processed.
-pub fn get_frontmost_app_info() -> (Option<String>, Option<String>, Option<String>, Option<String>, bool) {
+pub fn get_frontmost_app_info() -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    bool,
+) {
     unsafe {
         let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
         let front_app: id = msg_send![workspace, frontmostApplication];
@@ -133,7 +147,6 @@ pub fn get_frontmost_app_info() -> (Option<String>, Option<String>, Option<Strin
 
         // If frontmost app is NOT PastePaw, use it directly
         if !is_own_app(&app_name, &bundle_id) {
-
             let ns_icon: id = msg_send![front_app, icon];
             let icon_base64 = if ns_icon != nil {
                 nsimage_to_base64_png(ns_icon, 64.0)
@@ -141,7 +154,11 @@ pub fn get_frontmost_app_info() -> (Option<String>, Option<String>, Option<Strin
                 None
             };
 
-            log::info!("CLIPBOARD: Source app (frontmost): {:?} ({:?})", app_name, bundle_id);
+            log::info!(
+                "CLIPBOARD: Source app (frontmost): {:?} ({:?})",
+                app_name,
+                bundle_id
+            );
             return (app_name, icon_base64, bundle_id.clone(), bundle_id, true);
         }
 
@@ -149,7 +166,11 @@ pub fn get_frontmost_app_info() -> (Option<String>, Option<String>, Option<Strin
         log::debug!("CLIPBOARD: Frontmost is PastePaw, using last tracked foreground app");
         if let Ok(lock) = LAST_FOREGROUND_APP.lock() {
             if let Some(ref cached) = *lock {
-                log::info!("CLIPBOARD: Source app (cached): {:?} ({:?})", cached.name, cached.bundle_id);
+                log::info!(
+                    "CLIPBOARD: Source app (cached): {:?} ({:?})",
+                    cached.name,
+                    cached.bundle_id
+                );
                 return (
                     cached.name.clone(),
                     cached.icon_base64.clone(),
@@ -174,7 +195,11 @@ unsafe fn nsstring_to_string(nsstr: id) -> Option<String> {
     if utf8.is_null() {
         return None;
     }
-    Some(std::ffi::CStr::from_ptr(utf8).to_string_lossy().into_owned())
+    Some(
+        std::ffi::CStr::from_ptr(utf8)
+            .to_string_lossy()
+            .into_owned(),
+    )
 }
 
 /// Convert an NSImage to a base64-encoded PNG string at the given size.
@@ -187,14 +212,10 @@ fn nsimage_to_base64_png(source_image: id, size: f64) -> Option<String> {
 
         resized.lockFocus();
         let source_size: cocoa::foundation::NSSize = msg_send![source_image, size];
-        let src_rect = cocoa::foundation::NSRect::new(
-            cocoa::foundation::NSPoint::new(0.0, 0.0),
-            source_size,
-        );
-        let dst_rect = cocoa::foundation::NSRect::new(
-            cocoa::foundation::NSPoint::new(0.0, 0.0),
-            target_size,
-        );
+        let src_rect =
+            cocoa::foundation::NSRect::new(cocoa::foundation::NSPoint::new(0.0, 0.0), source_size);
+        let dst_rect =
+            cocoa::foundation::NSRect::new(cocoa::foundation::NSPoint::new(0.0, 0.0), target_size);
         // NSCompositingOperationCopy = 1
         let _: () = msg_send![source_image,
             drawInRect: dst_rect
@@ -257,8 +278,9 @@ pub fn is_accessibility_enabled() -> bool {
 pub fn open_accessibility_settings() {
     unsafe {
         let workspace: id = msg_send![class!(NSWorkspace), sharedWorkspace];
-        let url_string = cocoa::foundation::NSString::alloc(nil)
-            .init_str("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility");
+        let url_string = cocoa::foundation::NSString::alloc(nil).init_str(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        );
         let url: id = msg_send![class!(NSURL), URLWithString: url_string];
         let _: () = msg_send![workspace, openURL: url];
     }
