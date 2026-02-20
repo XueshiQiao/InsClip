@@ -201,87 +201,78 @@ async fn cleanup_all_clip_image_files(pool: &SqlitePool) -> Result<(), String> {
     Ok(())
 }
 
-async fn ensure_image_file_for_clip(
-    pool: &SqlitePool,
-    clip: &mut Clip,
-) -> Result<Option<String>, String> {
-    if clip.clip_type != "image" {
-        return Ok(None);
-    }
+pub async fn migrate_images_to_files(pool: &SqlitePool) -> Result<(), String> {
+    log::info!("Starting background image migration...");
 
-    let storage: Option<(Option<String>, Vec<u8>)> =
-        sqlx::query_as::<_, (Option<String>, Vec<u8>)>(
-            r#"
-        SELECT file_path, full_content
-        FROM clip_images
-        WHERE clip_uuid = ?
-        "#,
-        )
-        .bind(&clip.uuid)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if let Some((file_path, full_content)) = storage {
-        if let Some(path) = file_path {
-            if !path.is_empty() {
-                if std::path::Path::new(&path).exists() {
-                    return Ok(Some(path));
-                }
-            }
-        }
-
-        if !full_content.is_empty() {
-            let file_path = crate::clipboard::persist_full_image_file(&clip.uuid, &full_content)?;
-            sqlx::query(
-                r#"
-                INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
-                VALUES (?, x'', ?, ?, 'file', 'image/png', CURRENT_TIMESTAMP)
-                "#,
-            )
-            .bind(&clip.uuid)
-            .bind(&file_path)
-            .bind(full_content.len() as i64)
-            .execute(pool)
+    // 1. Migrate legacy clips (content in 'clips' table)
+    let legacy_clips: Vec<Clip> =
+        sqlx::query_as(r#"SELECT * FROM clips WHERE clip_type = 'image' AND length(content) > 0"#)
+            .fetch_all(pool)
             .await
             .map_err(|e| e.to_string())?;
-            sqlx::query(r#"UPDATE clips SET content = x'', is_thumbnail = 0 WHERE uuid = ?"#)
+
+    for clip in legacy_clips {
+        log::info!("Migrating legacy clip {}...", clip.uuid);
+        let full_bytes = clip.content.clone();
+        match crate::clipboard::persist_full_image_file(&clip.uuid, &full_bytes) {
+            Ok(file_path) => {
+                let _ = sqlx::query(
+                    r#"
+                    INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
+                    VALUES (?, x'', ?, ?, 'file', 'image/png', CURRENT_TIMESTAMP)
+                    "#,
+                )
+                .bind(&clip.uuid)
+                .bind(&file_path)
+                .bind(full_bytes.len() as i64)
+                .execute(pool)
+                .await;
+
+                let _ = sqlx::query(
+                    r#"UPDATE clips SET content = x'', is_thumbnail = 0 WHERE uuid = ?"#,
+                )
                 .bind(&clip.uuid)
                 .execute(pool)
-                .await
-                .map_err(|e| e.to_string())?;
-            clip.content.clear();
-            clip.is_thumbnail = false;
-            return Ok(Some(file_path));
+                .await;
+            }
+            Err(e) => {
+                log::error!("Failed to migrate legacy clip {}: {}", clip.uuid, e);
+            }
         }
     }
 
-    if !clip.content.is_empty() {
-        let full_bytes = clip.content.clone();
-        let file_path = crate::clipboard::persist_full_image_file(&clip.uuid, &full_bytes)?;
-        sqlx::query(
-            r#"
-            INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
-            VALUES (?, x'', ?, ?, 'file', 'image/png', CURRENT_TIMESTAMP)
-            "#,
-        )
-        .bind(&clip.uuid)
-        .bind(&file_path)
-        .bind(full_bytes.len() as i64)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-        sqlx::query(r#"UPDATE clips SET content = x'', is_thumbnail = 0 WHERE uuid = ?"#)
-            .bind(&clip.uuid)
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-        clip.content.clear();
-        clip.is_thumbnail = false;
-        return Ok(Some(file_path));
+    // 2. Migrate DB-stored images in 'clip_images'
+    let db_images: Vec<(String, Vec<u8>)> = sqlx::query_as(
+        r#"SELECT clip_uuid, full_content FROM clip_images WHERE storage_kind = 'db' AND length(full_content) > 0"#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    for (uuid, content) in db_images {
+        log::info!("Migrating DB-stored image for clip {}...", uuid);
+        match crate::clipboard::persist_full_image_file(&uuid, &content) {
+            Ok(file_path) => {
+                let _ = sqlx::query(
+                    r#"
+                    UPDATE clip_images
+                    SET full_content = x'', file_path = ?, storage_kind = 'file'
+                    WHERE clip_uuid = ?
+                    "#,
+                )
+                .bind(&file_path)
+                .bind(&uuid)
+                .execute(pool)
+                .await;
+            }
+            Err(e) => {
+                log::error!("Failed to migrate DB image for clip {}: {}", uuid, e);
+            }
+        }
     }
 
-    Ok(None)
+    log::info!("Background image migration completed.");
+    Ok(())
 }
 
 async fn load_full_image_content(pool: &SqlitePool, clip: &mut Clip) -> Result<Vec<u8>, String> {
@@ -289,10 +280,40 @@ async fn load_full_image_content(pool: &SqlitePool, clip: &mut Clip) -> Result<V
         return Err("Clip is not an image".to_string());
     }
 
-    if let Some(file_path) = ensure_image_file_for_clip(pool, clip).await? {
-        return crate::clipboard::read_full_image_file(&file_path);
+    // 1. Try fetching from file path in DB
+    let file_path: Option<String> =
+        sqlx::query_scalar(r#"SELECT file_path FROM clip_images WHERE clip_uuid = ?"#)
+            .bind(&clip.uuid)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    if let Some(path) = file_path {
+        if !path.is_empty() {
+            // If file exists, return it
+            if let Ok(bytes) = crate::clipboard::read_full_image_file(&path) {
+                return Ok(bytes);
+            }
+            // If file missing, try fallbacks below
+            log::warn!("Image file missing at {}, checking DB backups...", path);
+        }
     }
 
+    // 2. Try DB blob (migration not done or failed)
+    let full_content: Option<Vec<u8>> =
+        sqlx::query_scalar(r#"SELECT full_content FROM clip_images WHERE clip_uuid = ?"#)
+            .bind(&clip.uuid)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    if let Some(content) = full_content {
+        if !content.is_empty() {
+            return Ok(content);
+        }
+    }
+
+    // 3. Legacy content in clips table
     if !clip.content.is_empty() {
         return Ok(clip.content.clone());
     }
@@ -319,7 +340,7 @@ pub async fn get_clips(
     );
 
     let sql_started = Instant::now();
-    let mut clips: Vec<Clip> = match filter_id.as_deref() {
+    let clips: Vec<Clip> = match filter_id.as_deref() {
         Some(id) => {
             let folder_id_num = id.parse::<i64>().ok();
             if let Some(numeric_id) = folder_id_num {
@@ -360,19 +381,41 @@ pub async fn get_clips(
 
     log::info!("DB: Found {} clips", clips.len());
 
+    // Batch fetch image paths
     let mut image_path_map: HashMap<String, String> = HashMap::new();
-    for clip in &mut clips {
-        if clip.clip_type == "image" {
-            if let Some(path) = ensure_image_file_for_clip(pool, clip).await? {
-                image_path_map.insert(clip.uuid.clone(), path);
+    let image_uuids: Vec<String> = clips
+        .iter()
+        .filter(|c| c.clip_type == "image")
+        .map(|c| c.uuid.clone())
+        .collect();
+
+    if !image_uuids.is_empty() {
+        // Construct query: SELECT clip_uuid, file_path FROM clip_images WHERE clip_uuid IN (?, ?, ...)
+        let placeholders: Vec<String> = image_uuids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            "SELECT clip_uuid, file_path FROM clip_images WHERE clip_uuid IN ({})",
+            placeholders.join(",")
+        );
+
+        let mut query_builder = sqlx::query_as::<_, (String, Option<String>)>(&query);
+        for uuid in &image_uuids {
+            query_builder = query_builder.bind(uuid);
+        }
+
+        let results = query_builder
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        for (uuid, path) in results {
+            if let Some(p) = path {
+                if !p.is_empty() {
+                    image_path_map.insert(uuid, p);
+                }
             }
         }
     }
 
-    let image_rows = clips
-        .iter()
-        .filter(|clip| clip.clip_type == "image")
-        .count();
+    let image_rows = image_uuids.len();
     let raw_bytes: usize = clips.iter().map(|clip| clip.content.len()).sum();
     let map_started = Instant::now();
     let items: Vec<ClipboardItem> = clips
@@ -743,7 +786,7 @@ pub async fn search_clips(
     let search_pattern = format!("%{}%", query);
 
     let sql_started = Instant::now();
-    let mut clips: Vec<Clip> = match filter_id.as_deref() {
+    let clips: Vec<Clip> = match filter_id.as_deref() {
         Some(id) => {
             let folder_id_num = id.parse::<i64>().ok();
             if let Some(numeric_id) = folder_id_num {
@@ -777,19 +820,40 @@ pub async fn search_clips(
     };
     let sql_ms = sql_started.elapsed().as_millis();
 
+    // Batch fetch image paths
     let mut image_path_map: HashMap<String, String> = HashMap::new();
-    for clip in &mut clips {
-        if clip.clip_type == "image" {
-            if let Some(path) = ensure_image_file_for_clip(pool, clip).await? {
-                image_path_map.insert(clip.uuid.clone(), path);
+    let image_uuids: Vec<String> = clips
+        .iter()
+        .filter(|c| c.clip_type == "image")
+        .map(|c| c.uuid.clone())
+        .collect();
+
+    if !image_uuids.is_empty() {
+        let placeholders: Vec<String> = image_uuids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            "SELECT clip_uuid, file_path FROM clip_images WHERE clip_uuid IN ({})",
+            placeholders.join(",")
+        );
+
+        let mut query_builder = sqlx::query_as::<_, (String, Option<String>)>(&query);
+        for uuid in &image_uuids {
+            query_builder = query_builder.bind(uuid);
+        }
+
+        let results = query_builder
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        for (uuid, path) in results {
+            if let Some(p) = path {
+                if !p.is_empty() {
+                    image_path_map.insert(uuid, p);
+                }
             }
         }
     }
 
-    let image_rows = clips
-        .iter()
-        .filter(|clip| clip.clip_type == "image")
-        .count();
+    let image_rows = image_uuids.len();
     let raw_bytes: usize = clips.iter().map(|clip| clip.content.len()).sum();
     let map_started = Instant::now();
     let items: Vec<ClipboardItem> = clips

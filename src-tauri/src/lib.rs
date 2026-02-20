@@ -348,6 +348,14 @@ pub fn run_app() {
             let db_for_clip = db_for_clipboard.clone();
             clipboard::init(&handle_for_clip, db_for_clip);
 
+            // Start background image migration
+            let db_for_migration = db_for_clipboard.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = commands::migrate_images_to_files(&db_for_migration.pool).await {
+                    log::error!("Background image migration failed: {}", e);
+                }
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

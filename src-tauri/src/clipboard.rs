@@ -63,11 +63,6 @@ pub fn set_ignore_hash(hash: String) {
     *lock = Some(hash);
 }
 
-pub fn set_last_stable_hash(hash: String) {
-    let mut lock = LAST_STABLE_HASH.lock();
-    *lock = Some(hash);
-}
-
 pub fn init(app: &AppHandle, db: Arc<Database>) {
     let app_clone = app.clone();
     let db_clone = db.clone();
@@ -348,7 +343,6 @@ async fn process_clipboard_change(
     let started = std::time::Instant::now();
     let mut image_read_ms = 0u128;
     let mut image_decode_ms = 0u128;
-    let mut image_thumbnail_ms = 0u128;
     let mut text_read_ms = 0u128;
     let mut was_existing = false;
     let _guard = CLIPBOARD_SYNC.lock().await;
@@ -641,14 +635,13 @@ async fn process_clipboard_change(
     let emit_ms = emit_started.elapsed().as_millis();
 
     log::info!(
-        "[perf][clipboard_ingest] type={} existing={} full_bytes={} thumb_bytes={} image_read_ms={} decode_ms={} thumb_ms={} text_read_ms={} db_lookup_ms={} db_write_ms={} emit_ms={} total_ms={}",
+        "[perf][clipboard_ingest] type={} existing={} full_bytes={} thumb_bytes={} image_read_ms={} decode_ms={} text_read_ms={} db_lookup_ms={} db_write_ms={} emit_ms={} total_ms={}",
         clip_type,
         was_existing,
         full_image_content.as_ref().map(|v| v.len()).unwrap_or(0),
         if clip_type == "image" { clip_content.len() } else { 0 },
         image_read_ms,
         image_decode_ms,
-        image_thumbnail_ms,
         text_read_ms,
         db_lookup_ms,
         db_write_ms,
@@ -690,52 +683,6 @@ pub fn remove_full_image_file(file_path: &str) {
             log::warn!("Failed to delete image file {}: {}", file_path, e);
         }
     }
-}
-
-pub fn create_image_thumbnail(content: &[u8], max_edge: u32) -> Result<Vec<u8>, String> {
-    use image::codecs::png::PngEncoder;
-    use image::imageops::FilterType;
-    use image::{ColorType, ImageEncoder};
-
-    let img = image::load_from_memory(content).map_err(|e| e.to_string())?;
-    let (width, height) = (img.width(), img.height());
-    if width == 0 || height == 0 {
-        return Err("Invalid image dimensions".to_string());
-    }
-
-    let scale = if width > height {
-        max_edge as f32 / width as f32
-    } else {
-        max_edge as f32 / height as f32
-    };
-
-    let (target_w, target_h) = if scale >= 1.0 {
-        (width, height)
-    } else {
-        (
-            ((width as f32 * scale).round() as u32).max(1),
-            ((height as f32 * scale).round() as u32).max(1),
-        )
-    };
-
-    let resized = if target_w == width && target_h == height {
-        img.to_rgba8()
-    } else {
-        img.resize_exact(target_w, target_h, FilterType::Triangle)
-            .to_rgba8()
-    };
-
-    let mut out = Vec::new();
-    PngEncoder::new(&mut out)
-        .write_image(
-            resized.as_raw(),
-            resized.width(),
-            resized.height(),
-            ColorType::Rgba8,
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(out)
 }
 
 #[cfg(target_os = "windows")]
