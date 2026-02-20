@@ -7,5 +7,9 @@ cd "$REPO_ROOT/src-tauri"
 echo "[pre-commit] Running cargo fmt -- in src-tauri"
 cargo fmt --
 
+cd "$REPO_ROOT"
+echo "[pre-commit] Running pnpm format for frontend"
+pnpm format
+
 # Include formatter changes in the commit if any tracked files were updated.
-git -C "$REPO_ROOT" add -u src-tauri
+git -C "$REPO_ROOT" add -u src-tauri frontend/src
