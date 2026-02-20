@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+cd "$REPO_ROOT/src-tauri"
+echo "[pre-commit] Running cargo fmt -- in src-tauri"
+cargo fmt --
+
+# Include formatter changes in the commit if any tracked files were updated.
+git -C "$REPO_ROOT" add -u src-tauri
