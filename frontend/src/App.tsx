@@ -65,6 +65,10 @@ function App() {
   const appWindow = getCurrentWindow();
   const selectedFolderRef = useRef(selectedFolder);
   selectedFolderRef.current = selectedFolder;
+  const loadPerfIdRef = useRef(0);
+  const perfLogEnabled =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   useEffect(() => {
     invoke<Settings>('get_settings')
@@ -121,6 +125,11 @@ function App() {
 
   const loadClips = useCallback(
     async (folderId: string | null, append: boolean = false, searchQuery: string = '') => {
+      const perfId = ++loadPerfIdRef.current;
+      const loadStart = perfLogEnabled ? performance.now() : 0;
+      let invokeStart = 0;
+      let invokeEnd = 0;
+
       try {
         setIsLoading(true);
 
@@ -129,20 +138,34 @@ function App() {
         let data: AppClipboardItem[];
 
         if (searchQuery.trim()) {
+          if (perfLogEnabled) invokeStart = performance.now();
           data = await invoke<AppClipboardItem[]>('search_clips', {
             query: searchQuery,
             filterId: folderId,
             limit: 20,
             offset: currentOffset,
           });
+          if (perfLogEnabled) invokeEnd = performance.now();
         } else {
+          if (perfLogEnabled) invokeStart = performance.now();
           data = await invoke<AppClipboardItem[]>('get_clips', {
             filterId: folderId,
             limit: 20,
             offset: currentOffset,
             previewOnly: false,
           });
+          if (perfLogEnabled) invokeEnd = performance.now();
         }
+
+        const imageCount = perfLogEnabled ? data.filter((item) => item.clip_type === 'image').length : 0;
+        const totalContentChars = perfLogEnabled
+          ? data.reduce((sum, item) => sum + (item.content?.length ?? 0), 0)
+          : 0;
+        const imageContentChars = perfLogEnabled
+          ? data
+              .filter((item) => item.clip_type === 'image')
+              .reduce((sum, item) => sum + (item.content?.length ?? 0), 0)
+          : 0;
 
         if (append) {
           setClips((prev) => {
@@ -154,6 +177,29 @@ function App() {
 
         // If we got fewer than limit, no more clips
         setHasMore(data.length === 20);
+
+        if (perfLogEnabled) {
+          const stateQueuedAt = performance.now();
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const paintedAt = performance.now();
+              console.info('[perf][loadClips]', {
+                id: perfId,
+                folderId: folderId ?? 'all',
+                append,
+                hasSearch: Boolean(searchQuery.trim()),
+                offset: currentOffset,
+                itemCount: data.length,
+                imageCount,
+                totalContentChars,
+                imageContentChars,
+                invokeMs: Number((invokeEnd - invokeStart).toFixed(1)),
+                queueToPaintMs: Number((paintedAt - stateQueuedAt).toFixed(1)),
+                totalMs: Number((paintedAt - loadStart).toFixed(1)),
+              });
+            });
+          });
+        }
       } catch (error) {
         console.error('Failed to load clips:', error);
       } finally {

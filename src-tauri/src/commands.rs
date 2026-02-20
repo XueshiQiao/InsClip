@@ -3,6 +3,7 @@ use tauri_plugin_clipboard_x::{write_text, stop_listening, start_listening};
 
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 use std::str::FromStr;
+use std::time::Instant;
 use crate::database::Database;
 use std::sync::Arc;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
@@ -90,9 +91,11 @@ pub async fn ai_process_clip(app: AppHandle, clip_id: String, action: String, db
 pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, preview_only: Option<bool>, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
     let preview_only = preview_only.unwrap_or(false);
+    let started = Instant::now();
 
     log::info!("get_clips called with filter_id: {:?}, preview_only: {}", filter_id, preview_only);
 
+    let sql_started = Instant::now();
     let clips: Vec<Clip> = match filter_id.as_deref() {
         Some(id) => {
             let folder_id_num = id.parse::<i64>().ok();
@@ -122,9 +125,13 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
             .fetch_all(pool).await.map_err(|e| e.to_string())?
         }
     };
+    let sql_ms = sql_started.elapsed().as_millis();
 
     log::info!("DB: Found {} clips", clips.len());
 
+    let image_rows = clips.iter().filter(|clip| clip.clip_type == "image").count();
+    let raw_bytes: usize = clips.iter().map(|clip| clip.content.len()).sum();
+    let map_started = Instant::now();
     let items: Vec<ClipboardItem> = clips.iter().enumerate().map(|(idx, clip)| {
         let content_str = if preview_only && clip.clip_type == "image" {
             // In preview mode, don't send full image data - just empty string
@@ -152,6 +159,21 @@ pub async fn get_clips(filter_id: Option<String>, limit: i64, offset: i64, previ
             metadata: clip.metadata.clone(),
         }
     }).collect();
+    let map_ms = map_started.elapsed().as_millis();
+    let total_ms = started.elapsed().as_millis();
+    log::info!(
+        "[perf][get_clips] sql_ms={} map_ms={} total_ms={} rows={} images={} raw_bytes={} preview_only={} filter_id={:?} offset={} limit={}",
+        sql_ms,
+        map_ms,
+        total_ms,
+        clips.len(),
+        image_rows,
+        raw_bytes,
+        preview_only,
+        filter_id,
+        offset,
+        limit
+    );
 
     Ok(items)
 }
@@ -403,9 +425,11 @@ pub async fn rename_folder(id: String, name: String, db: tauri::State<'_, Arc<Da
 #[tauri::command]
 pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, offset: i64, db: tauri::State<'_, Arc<Database>>) -> Result<Vec<ClipboardItem>, String> {
     let pool = &db.pool;
+    let started = Instant::now();
 
     let search_pattern = format!("%{}%", query);
 
+    let sql_started = Instant::now();
     let clips: Vec<Clip> = match filter_id.as_deref() {
         Some(id) => {
             let folder_id_num = id.parse::<i64>().ok();
@@ -436,7 +460,11 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
             .fetch_all(pool).await.map_err(|e| e.to_string())?
         }
     };
+    let sql_ms = sql_started.elapsed().as_millis();
 
+    let image_rows = clips.iter().filter(|clip| clip.clip_type == "image").count();
+    let raw_bytes: usize = clips.iter().map(|clip| clip.content.len()).sum();
+    let map_started = Instant::now();
     let items: Vec<ClipboardItem> = clips.iter().map(|clip| {
         let content_str = if clip.clip_type == "image" {
             BASE64.encode(&clip.content)
@@ -456,6 +484,20 @@ pub async fn search_clips(query: String, filter_id: Option<String>, limit: i64, 
             metadata: clip.metadata.clone(),
         }
     }).collect();
+    let map_ms = map_started.elapsed().as_millis();
+    let total_ms = started.elapsed().as_millis();
+    log::info!(
+        "[perf][search_clips] sql_ms={} map_ms={} total_ms={} rows={} images={} raw_bytes={} filter_id={:?} offset={} limit={}",
+        sql_ms,
+        map_ms,
+        total_ms,
+        clips.len(),
+        image_rows,
+        raw_bytes,
+        filter_id,
+        offset,
+        limit
+    );
 
     Ok(items)
 }
