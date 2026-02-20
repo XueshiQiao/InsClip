@@ -377,12 +377,8 @@ async fn process_clipboard_change(
         let height = read_image_result.height;
         image_decode_ms = read_image_result.decode_ms;
         let size_bytes = bytes.len();
-        let thumbnail_started = std::time::Instant::now();
-        let thumbnail = create_image_thumbnail(&bytes, 256).unwrap_or_else(|_| bytes.clone());
-        image_thumbnail_ms = thumbnail_started.elapsed().as_millis();
-
         clip_hash = read_image_result.raw_hash;
-        clip_content = thumbnail.clone();
+        clip_content = Vec::new();
         full_image_content = Some(bytes);
         clip_type = "image";
         clip_preview = "[Image]".to_string();
@@ -390,18 +386,16 @@ async fn process_clipboard_change(
             "width": width,
             "height": height,
             "format": "png",
-            "size_bytes": size_bytes,
-            "thumbnail_size_bytes": thumbnail.len()
+            "size_bytes": size_bytes
         })
         .to_string();
         found_content = true;
         log::debug!(
-            "CLIPBOARD: Found image: {}x{}, source_type={}, png_bytes={}, thumb_bytes={}",
+            "CLIPBOARD: Found image: {}x{}, source_type={}, png_bytes={}",
             width,
             height,
             read_image_result.source_type,
-            size_bytes,
-            thumbnail.len()
+            size_bytes
         );
     }
 
@@ -526,7 +520,7 @@ async fn process_clipboard_change(
                     content = ?,
                     text_preview = ?,
                     metadata = ?,
-                    is_thumbnail = 1
+                    is_thumbnail = 0
                 WHERE uuid = ?
                 "#,
             )
@@ -555,21 +549,11 @@ async fn process_clipboard_change(
                         .await;
                     }
                     Err(e) => {
-                        log::warn!(
-                            "Failed to persist full image file, fallback to DB blob: {}",
+                        log::error!(
+                            "Failed to persist full image file for existing clip {}: {}",
+                            existing_id,
                             e
                         );
-                        let _ = sqlx::query(
-                            r#"
-                            INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
-                            VALUES (?, ?, NULL, ?, 'db', 'image/png', CURRENT_TIMESTAMP)
-                            "#,
-                        )
-                        .bind(&existing_id)
-                        .bind(full_bytes)
-                        .bind(full_bytes.len() as i64)
-                        .execute(pool)
-                        .await;
                     }
                 }
             }
@@ -596,7 +580,7 @@ async fn process_clipboard_change(
         .bind(&clip_content)
         .bind(&clip_preview)
         .bind(&clip_hash)
-        .bind(clip_type == "image")
+        .bind(false)
         .bind(&source_app)
         .bind(&source_icon)
         .bind(if clip_type == "image" {
@@ -624,21 +608,16 @@ async fn process_clipboard_change(
                         .await;
                     }
                     Err(e) => {
-                        log::warn!(
-                            "Failed to persist full image file, fallback to DB blob: {}",
+                        log::error!(
+                            "Failed to persist full image file for new clip {}, dropping clip: {}",
+                            clip_uuid,
                             e
                         );
-                        let _ = sqlx::query(
-                            r#"
-                            INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
-                            VALUES (?, ?, NULL, ?, 'db', 'image/png', CURRENT_TIMESTAMP)
-                            "#,
-                        )
-                        .bind(&clip_uuid)
-                        .bind(full_bytes)
-                        .bind(full_bytes.len() as i64)
-                        .execute(pool)
-                        .await;
+                        let _ = sqlx::query(r#"DELETE FROM clips WHERE uuid = ?"#)
+                            .bind(&clip_uuid)
+                            .execute(pool)
+                            .await;
+                        return;
                     }
                 }
             }

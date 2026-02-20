@@ -29,6 +29,14 @@
     ],
     "security": {
       "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$DATA/PastePaw/images/**",
+          "$LOCALDATA/PastePaw/images/**",
+          "$HOME/Library/Application Support/PastePaw/images/**"
+        ]
+      },
       "capabilities": [
         "default"
       ]

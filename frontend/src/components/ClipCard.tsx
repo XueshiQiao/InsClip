@@ -1,6 +1,7 @@
 import { ClipboardItem } from '../types';
 import { clsx } from 'clsx';
 import { useMemo, memo, useState, forwardRef } from 'react';
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { useTranslation } from 'react-i18next';
 import { LAYOUT, TOTAL_COLUMN_WIDTH, PREVIEW_CHAR_LIMIT } from '../constants';
 import { Copy, Check } from 'lucide-react';
@@ -23,6 +24,25 @@ export const ClipCard = memo(
     const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     const title = clip.source_app || clip.clip_type.toUpperCase();
+    const imageSrc = useMemo(() => {
+      if (clip.clip_type !== 'image' || !clip.content) return null;
+      const value = clip.content;
+      const isAbsolutePath = value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value);
+      if (
+        value.startsWith('data:') ||
+        value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('asset:') ||
+        value.startsWith('tauri://')
+      ) {
+        return value;
+      }
+      if (isAbsolutePath) {
+        return convertFileSrc(value);
+      }
+      return `data:image/png;base64,${value}`;
+    }, [clip.clip_type, clip.content]);
+
     const imageSizeKb = useMemo(() => {
       if (clip.clip_type !== 'image') return 0;
       try {
@@ -33,10 +53,10 @@ export const ClipCard = memo(
           return Math.round(parsed.size_bytes / 1024);
         }
       } catch {
-        // Ignore invalid metadata and fall back to payload length estimate.
+        // Ignore invalid metadata and fall back to zero.
       }
-      return Math.round((clip.content.length * 0.75) / 1024);
-    }, [clip.clip_type, clip.content.length, clip.metadata]);
+      return 0;
+    }, [clip.clip_type, clip.metadata]);
 
     // Memoize the content rendering
     const renderedContent = useMemo(() => {
@@ -45,7 +65,7 @@ export const ClipCard = memo(
           <div className="flex h-full w-full select-none items-center justify-center">
             {clip.content ? (
               <img
-                src={`data:image/png;base64,${clip.content}`}
+                src={imageSrc ?? undefined}
                 alt="Clipboard Image"
                 className="max-h-full max-w-full object-contain"
               />
@@ -61,7 +81,7 @@ export const ClipCard = memo(
           </pre>
         );
       }
-    }, [clip.clip_type, clip.content]);
+    }, [clip.clip_type, clip.content, imageSrc]);
 
     // Generate stable color index based on source app name
     const getAppColorIndex = (name: string) => {

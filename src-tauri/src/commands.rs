@@ -7,6 +7,7 @@ use crate::models::{Clip, ClipboardItem, Folder, FolderItem};
 use crate::settings_manager::SettingsManager;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
@@ -102,9 +103,9 @@ pub async fn ai_process_clip(
     Ok(result)
 }
 
-fn clip_to_list_item(clip: &Clip) -> ClipboardItem {
+fn clip_to_list_item(clip: &Clip, image_path: Option<&str>) -> ClipboardItem {
     let content_str = if clip.clip_type == "image" {
-        BASE64.encode(&clip.content)
+        image_path.unwrap_or_default().to_string()
     } else {
         String::from_utf8_lossy(&clip.content).to_string()
     };
@@ -200,17 +201,38 @@ async fn cleanup_all_clip_image_files(pool: &SqlitePool) -> Result<(), String> {
     Ok(())
 }
 
-async fn migrate_legacy_image_clip(pool: &SqlitePool, clip: &mut Clip) -> Result<(), String> {
-    if clip.clip_type != "image" || clip.is_thumbnail {
-        return Ok(());
+async fn ensure_image_file_for_clip(
+    pool: &SqlitePool,
+    clip: &mut Clip,
+) -> Result<Option<String>, String> {
+    if clip.clip_type != "image" {
+        return Ok(None);
     }
 
-    let full_bytes = clip.content.clone();
-    let thumbnail = crate::clipboard::create_image_thumbnail(&full_bytes, 256)
-        .unwrap_or_else(|_| full_bytes.clone());
+    let storage: Option<(Option<String>, Vec<u8>)> =
+        sqlx::query_as::<_, (Option<String>, Vec<u8>)>(
+            r#"
+        SELECT file_path, full_content
+        FROM clip_images
+        WHERE clip_uuid = ?
+        "#,
+        )
+        .bind(&clip.uuid)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    match crate::clipboard::persist_full_image_file(&clip.uuid, &full_bytes) {
-        Ok(file_path) => {
+    if let Some((file_path, full_content)) = storage {
+        if let Some(path) = file_path {
+            if !path.is_empty() {
+                if std::path::Path::new(&path).exists() {
+                    return Ok(Some(path));
+                }
+            }
+        }
+
+        if !full_content.is_empty() {
+            let file_path = crate::clipboard::persist_full_image_file(&clip.uuid, &full_content)?;
             sqlx::query(
                 r#"
                 INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
@@ -219,42 +241,47 @@ async fn migrate_legacy_image_clip(pool: &SqlitePool, clip: &mut Clip) -> Result
             )
             .bind(&clip.uuid)
             .bind(&file_path)
-            .bind(full_bytes.len() as i64)
+            .bind(full_content.len() as i64)
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
-        }
-        Err(e) => {
-            log::warn!(
-                "Failed to persist legacy image to file, fallback to DB blob for {}: {}",
-                clip.uuid,
-                e
-            );
-            sqlx::query(
-                r#"
-                INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
-                VALUES (?, ?, NULL, ?, 'db', 'image/png', CURRENT_TIMESTAMP)
-                "#,
-            )
-            .bind(&clip.uuid)
-            .bind(&full_bytes)
-            .bind(full_bytes.len() as i64)
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+            sqlx::query(r#"UPDATE clips SET content = x'', is_thumbnail = 0 WHERE uuid = ?"#)
+                .bind(&clip.uuid)
+                .execute(pool)
+                .await
+                .map_err(|e| e.to_string())?;
+            clip.content.clear();
+            clip.is_thumbnail = false;
+            return Ok(Some(file_path));
         }
     }
 
-    sqlx::query(r#"UPDATE clips SET content = ?, is_thumbnail = 1 WHERE uuid = ?"#)
-        .bind(&thumbnail)
+    if !clip.content.is_empty() {
+        let full_bytes = clip.content.clone();
+        let file_path = crate::clipboard::persist_full_image_file(&clip.uuid, &full_bytes)?;
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO clip_images (clip_uuid, full_content, file_path, file_size, storage_kind, mime_type, created_at)
+            VALUES (?, x'', ?, ?, 'file', 'image/png', CURRENT_TIMESTAMP)
+            "#,
+        )
         .bind(&clip.uuid)
+        .bind(&file_path)
+        .bind(full_bytes.len() as i64)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+        sqlx::query(r#"UPDATE clips SET content = x'', is_thumbnail = 0 WHERE uuid = ?"#)
+            .bind(&clip.uuid)
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        clip.content.clear();
+        clip.is_thumbnail = false;
+        return Ok(Some(file_path));
+    }
 
-    clip.content = thumbnail;
-    clip.is_thumbnail = true;
-    Ok(())
+    Ok(None)
 }
 
 async fn load_full_image_content(pool: &SqlitePool, clip: &mut Clip) -> Result<Vec<u8>, String> {
@@ -262,44 +289,12 @@ async fn load_full_image_content(pool: &SqlitePool, clip: &mut Clip) -> Result<V
         return Err("Clip is not an image".to_string());
     }
 
-    if !clip.is_thumbnail {
-        let full = clip.content.clone();
-        migrate_legacy_image_clip(pool, clip).await?;
-        return Ok(full);
+    if let Some(file_path) = ensure_image_file_for_clip(pool, clip).await? {
+        return crate::clipboard::read_full_image_file(&file_path);
     }
 
-    let storage: Option<(Option<String>, Vec<u8>)> = sqlx::query_as(
-        r#"
-        SELECT file_path, full_content
-        FROM clip_images
-        WHERE clip_uuid = ?
-        "#,
-    )
-    .bind(&clip.uuid)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    if let Some((file_path, full_content)) = storage {
-        if let Some(path) = file_path {
-            if !path.is_empty() {
-                match crate::clipboard::read_full_image_file(&path) {
-                    Ok(bytes) => return Ok(bytes),
-                    Err(e) => {
-                        log::warn!(
-                            "Failed to read file-based full image for {} at {}: {}",
-                            clip.uuid,
-                            path,
-                            e
-                        );
-                    }
-                }
-            }
-        }
-
-        if !full_content.is_empty() {
-            return Ok(full_content);
-        }
+    if !clip.content.is_empty() {
+        return Ok(clip.content.clone());
     }
 
     Err("Image content missing".to_string())
@@ -365,9 +360,12 @@ pub async fn get_clips(
 
     log::info!("DB: Found {} clips", clips.len());
 
+    let mut image_path_map: HashMap<String, String> = HashMap::new();
     for clip in &mut clips {
-        if clip.clip_type == "image" && !clip.is_thumbnail {
-            migrate_legacy_image_clip(pool, clip).await?;
+        if clip.clip_type == "image" {
+            if let Some(path) = ensure_image_file_for_clip(pool, clip).await? {
+                image_path_map.insert(clip.uuid.clone(), path);
+            }
         }
     }
 
@@ -381,7 +379,7 @@ pub async fn get_clips(
         .iter()
         .enumerate()
         .map(|(idx, clip)| {
-            let item = clip_to_list_item(clip);
+            let item = clip_to_list_item(clip, image_path_map.get(&clip.uuid).map(|s| s.as_str()));
             // Only log first 10 clips to reduce noise
             if idx < 10 {
                 log::trace!(
@@ -481,10 +479,10 @@ pub async fn paste_clip(
             if clip.clip_type == "image" {
                 crate::clipboard::set_ignore_hash(content_hash.clone());
                 //crate::clipboard::set_last_stable_hash(content_hash.clone());
-                let full_image_bytes = load_full_image_content(pool, &mut clip).await?;
 
                 #[cfg(target_os = "macos")]
                 {
+                    let full_image_bytes = load_full_image_content(pool, &mut clip).await?;
                     // Write PNG to temp file + file URL on pasteboard (fast path via disk)
                     if let Err(e) = crate::clipboard::write_png_to_pasteboard(&full_image_bytes) {
                         final_res = Err(format!("Failed to write image to clipboard: {}", e));
@@ -493,8 +491,8 @@ pub async fn paste_clip(
 
                 #[cfg(not(target_os = "macos"))]
                 {
-                    // On Windows, frontend writes image via navigator.clipboard API
-                    let _ = &full_image_bytes;
+                    // On Windows, frontend already writes image via navigator.clipboard API.
+                    // Avoid redundant backend file read to keep paste path fast.
                 }
             } else {
                 let content_str = String::from_utf8_lossy(&clip.content).to_string();
@@ -779,9 +777,12 @@ pub async fn search_clips(
     };
     let sql_ms = sql_started.elapsed().as_millis();
 
+    let mut image_path_map: HashMap<String, String> = HashMap::new();
     for clip in &mut clips {
-        if clip.clip_type == "image" && !clip.is_thumbnail {
-            migrate_legacy_image_clip(pool, clip).await?;
+        if clip.clip_type == "image" {
+            if let Some(path) = ensure_image_file_for_clip(pool, clip).await? {
+                image_path_map.insert(clip.uuid.clone(), path);
+            }
         }
     }
 
@@ -791,7 +792,10 @@ pub async fn search_clips(
         .count();
     let raw_bytes: usize = clips.iter().map(|clip| clip.content.len()).sum();
     let map_started = Instant::now();
-    let items: Vec<ClipboardItem> = clips.iter().map(clip_to_list_item).collect();
+    let items: Vec<ClipboardItem> = clips
+        .iter()
+        .map(|clip| clip_to_list_item(clip, image_path_map.get(&clip.uuid).map(|s| s.as_str())))
+        .collect();
     let map_ms = map_started.elapsed().as_millis();
     let total_ms = started.elapsed().as_millis();
     log::info!(
@@ -833,7 +837,6 @@ pub async fn get_folders(db: tauri::State<'_, Arc<Database>>) -> Result<Vec<Fold
     .map_err(|e| e.to_string())?;
 
     // Create a map for easier lookup
-    use std::collections::HashMap;
     let count_map: HashMap<i64, i64> = counts.into_iter().collect();
 
     let items: Vec<FolderItem> = folders
