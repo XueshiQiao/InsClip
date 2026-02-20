@@ -9,6 +9,7 @@ interface ClipListProps {
   clips: ClipboardItem[];
   isLoading: boolean;
   hasMore: boolean;
+  resetToken: number;
   selectedClipId: string | null;
   onSelectClip: (clipId: string) => void;
   onPaste: (clipId: string) => void;
@@ -23,6 +24,7 @@ export function ClipList({
   clips,
   isLoading,
   hasMore,
+  resetToken,
   selectedClipId,
   onSelectClip,
   onPaste,
@@ -49,6 +51,25 @@ export function ClipList({
       });
     }
   }, [gridApi, selectedClipIndex]);
+
+  useEffect(() => {
+    if (wheelRafRef.current !== null) {
+      cancelAnimationFrame(wheelRafRef.current);
+      wheelRafRef.current = null;
+    }
+    wheelTargetRef.current = 0;
+
+    const element = gridApi?.element;
+    if (element) {
+      element.scrollLeft = 0;
+    }
+
+    gridApi?.scrollToColumn({
+      index: 0,
+      align: 'start',
+      behavior: 'auto',
+    });
+  }, [gridApi, resetToken]);
 
   const handleWheel = (e: React.WheelEvent) => {
     const element = gridApi?.element;

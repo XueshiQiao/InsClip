@@ -35,6 +35,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [clipListResetToken, setClipListResetToken] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [theme, setTheme] = useState('system');
@@ -178,6 +179,13 @@ function App() {
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
+  }, []);
+
+  const handleSelectFolder = useCallback((folderId: string | null) => {
+    // Reset view-level selection state whenever user switches/re-clicks folders.
+    setSelectedClipId(null);
+    setClipListResetToken((prev) => prev + 1);
+    setSelectedFolder(folderId);
   }, []);
 
   useEffect(() => {
@@ -663,7 +671,7 @@ function App() {
           <ControlBar
             folders={folders}
             selectedFolder={selectedFolder}
-            onSelectFolder={setSelectedFolder}
+            onSelectFolder={handleSelectFolder}
             showSearch={showSearch}
             searchQuery={searchQuery}
             onSearchChange={handleSearch}
@@ -697,6 +705,7 @@ function App() {
               clips={clips}
               isLoading={isLoading}
               hasMore={hasMore}
+              resetToken={clipListResetToken}
               selectedClipId={selectedClipId}
               onSelectClip={setSelectedClipId}
               onPaste={handlePaste}
